@@ -3076,7 +3076,6 @@ const upload2 = multer({
     }
 });
 
-
 app.post("/reqDocument", isLogin, upload2.array("proof[]"), async (req, res) => {
   const sessionUserId = req.user._id; // Logged-in user ID
 
@@ -3090,13 +3089,13 @@ app.post("/reqDocument", isLogin, upload2.array("proof[]"), async (req, res) => 
     if (req.files && req.files.length > 0) {
       const uploadPromises = req.files.map(file =>
         cloudinary.uploader.upload(file.path, {
-          folder: "barangay_proofs", // Cloudinary folder name
+          folder: "barangay_proofs",
           resource_type: "image"
         })
       );
 
       const results = await Promise.all(uploadPromises);
-      proof = results.map(r => r.secure_url); // Cloudinary hosted URLs
+      proof = results.map(r => r.secure_url);
     }
 
     // Ensure all inputs are arrays
@@ -3120,7 +3119,6 @@ app.post("/reqDocument", isLogin, upload2.array("proof[]"), async (req, res) => 
 
     // Fetch logged-in resident for email + indigent
     const resident = await db.collection("resident").findOne({ _id: new ObjectId(sessionUserId) });
-    const residentIndigent = resident?.indigent || "";
 
     // Manila time helper
     const manilaNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
@@ -3137,10 +3135,9 @@ app.post("/reqDocument", isLogin, upload2.array("proof[]"), async (req, res) => 
 
       let status = "Pending";
       if (docType === "Barangay Indigency") {
-        status = "Pending"; // You can adjust logic if needed
+        status = "Pending"; // Adjust logic if needed
       }
 
-      // Convert requestFor to ObjectId
       const requestForId = requestFor[i] ? new ObjectId(requestFor[i]) : new ObjectId(sessionUserId);
 
       return {
@@ -3156,14 +3153,17 @@ app.post("/reqDocument", isLogin, upload2.array("proof[]"), async (req, res) => 
         type: docType,
         qty: qty[i] || 1,
         purpose: purpose[i] || "",
-        proof: proof[i] || "" // Cloudinary URL if uploaded
+        proof: proof[i] || ""
       };
     });
 
-    // Insert all documents
+    // Insert documents
     await db.collection("request").insertMany(docsToInsert);
 
-    // Send email notification
+    // Send response immediately before sending email
+    res.redirect("/reqSuccess");
+
+    // Send email notification asynchronously after response
     if (resident?.email) {
       const mailOptions = {
         from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
@@ -3184,9 +3184,6 @@ app.post("/reqDocument", isLogin, upload2.array("proof[]"), async (req, res) => 
         console.error("Error sending email:", emailError);
       }
     }
-
-    // Redirect to success page
-    res.redirect("/reqSuccess");
 
   } catch (err) {
     console.error("Error inserting request:", err);
@@ -3207,12 +3204,12 @@ app.post("/reqDocumentA", isLogin, upload2.array("proof[]"), async (req, res) =>
     if (req.files && req.files.length > 0) {
       const uploadPromises = req.files.map(file =>
         cloudinary.uploader.upload(file.path, {
-          folder: "barangay_proofs", // store inside this Cloudinary folder
+          folder: "barangay_proofs",
           resource_type: "image",
         })
       );
       const results = await Promise.all(uploadPromises);
-      proof = results.map(r => r.secure_url); // save Cloudinary URLs
+      proof = results.map(r => r.secure_url);
     }
 
     // Ensure all inputs are arrays
@@ -3253,10 +3250,9 @@ app.post("/reqDocumentA", isLogin, upload2.array("proof[]"), async (req, res) =>
 
       let status = "Pending";
       if (docType === "Barangay Indigency") {
-        status = "Pending"; // can adjust based on residentIndigent
+        status = "Pending"; // adjust if needed
       }
 
-      // Convert requestFor to ObjectId
       const requestForId = requestFor[i] ? new ObjectId(requestFor[i]) : new ObjectId(sessionUserId);
 
       return {
@@ -3272,14 +3268,17 @@ app.post("/reqDocumentA", isLogin, upload2.array("proof[]"), async (req, res) =>
         type: docType,
         qty: qty[i] || 1,
         purpose: purpose[i] || "",
-        proof: proof[i] || "", // Cloudinary URL if uploaded
+        proof: proof[i] || "",
       };
     });
 
     // Insert all documents
     await db.collection("request").insertMany(docsToInsert);
 
-    // Send email notification
+    // Redirect to success page immediately
+    res.redirect("/reqSuccessA");
+
+    // Send email notification asynchronously after redirect
     if (resident?.email) {
       const mailOptions = {
         from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
@@ -3301,14 +3300,12 @@ app.post("/reqDocumentA", isLogin, upload2.array("proof[]"), async (req, res) =>
       }
     }
 
-    // Redirect to success page
-    res.redirect("/reqSuccessA");
-
   } catch (err) {
     console.error("Error inserting request:", err);
     res.status(500).send('<script>alert("Error inserting request! Please try again."); window.location="/hom";</script>');
   }
 });
+
 
 app.get("/api/residents", async (req, res) => {
     try {
@@ -3345,7 +3342,7 @@ app.get("/das", isLogin, isReq, async (req, res) => {
     const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
     const y = now.getFullYear(), m = now.getMonth(), d = now.getDate(), day = now.getDay();
 
-    // Base match
+    // Base match filter
     let matchRequest = { archive: 0 };
     let timeGroup;
 
@@ -3358,8 +3355,12 @@ app.get("/das", isLogin, isReq, async (req, res) => {
         };
         timeGroup = { $hour: { date: "$createdAt", timezone: "Asia/Manila" } };
       } else if (filterDate === "week") {
-        const start = new Date(now); start.setDate(d - day); start.setHours(0,0,0,0);
-        const end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23,59,59,999);
+        const start = new Date(now);
+        start.setDate(d - day);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
         matchRequest.createdAt = { $gte: start, $lte: end };
         timeGroup = { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } };
       } else if (filterDate === "month") {
@@ -3413,7 +3414,7 @@ app.get("/das", isLogin, isReq, async (req, res) => {
       }] : [])
     ];
 
-    // Chart data
+    // Pipelines for each aggregate query
     const chartPipeline = [
       ...basePipeline,
       ...(timeGroup
@@ -3422,25 +3423,7 @@ app.get("/das", isLogin, isReq, async (req, res) => {
       )
     ];
 
-    const chartData = await requestCollection.aggregate(chartPipeline).toArray();
-
-    // Totals & percentages
-    const totals = chartData.reduce((acc, item) => {
-      const status = item._id.status;
-      acc[status] = (acc[status] || 0) + item.count;
-      return acc;
-    }, {});
-    const grandTotal = Object.values(totals).reduce((a,b) => a+b, 0);
-    const percentages = {};
-    for (const [status, count] of Object.entries(totals)) {
-      percentages[status] = grandTotal ? ((count / grandTotal) * 100).toFixed(2) : 0;
-    }
-
-    // Insights
-    const insights = {};
-
-    // Top Requestors
-    insights.topRequestors = await requestCollection.aggregate([
+    const topRequestorsPipeline = [
       ...basePipeline,
       {
         $group: {
@@ -3458,7 +3441,7 @@ app.get("/das", isLogin, isReq, async (req, res) => {
         $project: {
           name: {
             $cond: [
-              { $and: [ { $ne: ["$firstName", null] }, { $ne: ["$lastName", null] } ] },
+              { $and: [{ $ne: ["$firstName", null] }, { $ne: ["$lastName", null] }] },
               { $concat: ["$firstName", " ", "$lastName"] },
               "Unknown"
             ]
@@ -3468,48 +3451,82 @@ app.get("/das", isLogin, isReq, async (req, res) => {
           count: 1
         }
       }
-    ]).toArray();
+    ];
 
-    // Top Ages
-    insights.topAges = await requestCollection.aggregate([
+    const topAgesPipeline = [
       ...basePipeline,
       { $group: { _id: "$residentArr.age", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 3 }
-    ]).toArray();
+    ];
 
-    // Top Purok
-    insights.topPurok = await requestCollection.aggregate([
+    const topPurokPipeline = [
       ...basePipeline,
       { $group: { _id: "$residentArr.purok", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 3 }
-    ]).toArray();
+    ];
 
-    // Top Days
-    insights.topDays = await requestCollection.aggregate([
+    const topDaysPipeline = [
       ...basePipeline,
       { $group: { _id: { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } }, count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 3 }
-    ]).toArray();
+    ];
 
-    // === Basic Prediction / Smoothing example ===
-    const totalRequests = await requestCollection.countDocuments(matchRequest);
-    insights.prediction = Math.round(totalRequests * 1.05); // +5% estimate
-    insights.smoothing = "Simple Exponential"; // placeholder
-    insights.avg = Math.round(totalRequests / 12);
-    insights.highestMonth = "N/A"; // you can compute based on month aggregation
-    insights.highest = 0;
-    insights.lowestMonth = "N/A";
-    insights.lowest = 0;
-    insights.momChange = 0;
+    // Run all aggregation queries in parallel
+    const [
+      chartData,
+      topRequestors,
+      topAges,
+      topPurok,
+      topDays,
+      totalRequests
+    ] = await Promise.all([
+      requestCollection.aggregate(chartPipeline).toArray(),
+      requestCollection.aggregate(topRequestorsPipeline).toArray(),
+      requestCollection.aggregate(topAgesPipeline).toArray(),
+      requestCollection.aggregate(topPurokPipeline).toArray(),
+      requestCollection.aggregate(topDaysPipeline).toArray(),
+      requestCollection.countDocuments(matchRequest)
+    ]);
 
-    // Respond
+    // Calculate totals & percentages
+    const totals = chartData.reduce((acc, item) => {
+      const status = item._id.status;
+      acc[status] = (acc[status] || 0) + item.count;
+      return acc;
+    }, {});
+
+    const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
+
+    const percentages = {};
+    for (const [status, count] of Object.entries(totals)) {
+      percentages[status] = grandTotal ? ((count / grandTotal) * 100).toFixed(2) : 0;
+    }
+
+    // Prepare insights
+    const insights = {
+      topRequestors,
+      topAges,
+      topPurok,
+      topDays,
+      prediction: Math.round(totalRequests * 1.05), // +5% estimate
+      smoothing: "Simple Exponential", // placeholder
+      avg: Math.round(totalRequests / 12),
+      highestMonth: "N/A",
+      highest: 0,
+      lowestMonth: "N/A",
+      lowest: 0,
+      momChange: 0,
+    };
+
+    // Respond with JSON if AJAX/fetch request
     if (req.get("X-Requested-With") === "fetch") {
       return res.json({ chartData, totals, percentages, grandTotal, insights });
     }
 
+    // Otherwise render page
     res.render("das", {
       layout: "layout",
       title: "Dashboard",
