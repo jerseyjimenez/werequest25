@@ -633,7 +633,7 @@ app.post("/login", async (req, res) => {
         console.log("Session set:", req.session);
 
         // 🔹 Redirect based on user access
-        const redirectPath = user.access === 1 ? "/resv" : user.access === 0 ? "/hom" : "/";
+        const redirectPath = user.access === 1 ? "/wc" : user.access === 0 ? "/hom" : "/";
         return res.redirect(redirectPath);
 
     } catch (err) {
@@ -673,7 +673,7 @@ app.post("/login2", async (req, res) => {
         console.log("Session set:", req.session);
 
         // 🔹 Redirect based on access
-        const redirectPath = user.access === 1 ? "/resv" : user.access === 0 ? "/hom" : "/index2";
+        const redirectPath = user.access === 1 ? "/wc" : user.access === 0 ? "/hom" : "/index2";
         return res.redirect(redirectPath);
 
     } catch (err) {
@@ -3326,6 +3326,7 @@ app.get("/ovvR", isLogin, isReq, (req, res) => res.render("ovvR", { layout: "lay
 app.get("/ovvG", isLogin, isReq, (req, res) => res.render("ovvG", { layout: "layout", title: "Good Moral", activePage: "ovvG" }));
 app.get("/ovvC", isLogin, isReq, isRsd, (req, res) => res.render("ovvC", { layout: "layout", title: "Certification", activePage: "ovvC" }));
 app.get("/docc", isLogin, isReq, (req, res) => res.render("docc", { layout: "layout", title: "Document", activePage: "docc" }));
+app.get("/wc", isLogin, (req, res) => res.render("wc", { layout: "layout", title: "Document", activePage: "wc" }));
 
 app.get("/das", isLogin, isReq, async (req, res) => {
   try {
