@@ -633,7 +633,7 @@ app.post("/login", async (req, res) => {
         console.log("Session set:", req.session);
 
         // 🔹 Redirect based on user access
-        const redirectPath = user.access === 1 ? "/prf" : user.access === 0 ? "/hom" : "/";
+        const redirectPath = user.access === 1 ? "/resv" : user.access === 0 ? "/hom" : "/";
         return res.redirect(redirectPath);
 
     } catch (err) {
@@ -673,7 +673,7 @@ app.post("/login2", async (req, res) => {
         console.log("Session set:", req.session);
 
         // 🔹 Redirect based on access
-        const redirectPath = user.access === 1 ? "/prf" : user.access === 0 ? "/hom" : "/index2";
+        const redirectPath = user.access === 1 ? "/resv" : user.access === 0 ? "/hom" : "/index2";
         return res.redirect(redirectPath);
 
     } catch (err) {
