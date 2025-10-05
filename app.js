@@ -3328,7 +3328,6 @@ app.get("/ovvC", isLogin, isReq, isRsd, (req, res) => res.render("ovvC", { layou
 app.get("/docc", isLogin, isReq, (req, res) => res.render("docc", { layout: "layout", title: "Document", activePage: "docc" }));
 
 app.get("/wc", isLogin, (req, res) => res.render("wc", { layout: "layout", title: "Document", activePage: "wc" }));
-
 app.get("/das", isLogin, isReq, async (req, res) => {
   try {
     const {
@@ -3344,7 +3343,7 @@ app.get("/das", isLogin, isReq, async (req, res) => {
     const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
     const y = now.getFullYear(), m = now.getMonth(), d = now.getDate(), day = now.getDay();
 
-    // Base match filter
+    // Base match
     let matchRequest = { archive: 0 };
     let timeGroup;
 
@@ -3357,12 +3356,8 @@ app.get("/das", isLogin, isReq, async (req, res) => {
         };
         timeGroup = { $hour: { date: "$createdAt", timezone: "Asia/Manila" } };
       } else if (filterDate === "week") {
-        const start = new Date(now);
-        start.setDate(d - day);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(start);
-        end.setDate(start.getDate() + 6);
-        end.setHours(23, 59, 59, 999);
+        const start = new Date(now); start.setDate(d - day); start.setHours(0,0,0,0);
+        const end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23,59,59,999);
         matchRequest.createdAt = { $gte: start, $lte: end };
         timeGroup = { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } };
       } else if (filterDate === "month") {
@@ -3416,7 +3411,7 @@ app.get("/das", isLogin, isReq, async (req, res) => {
       }] : [])
     ];
 
-    // Pipelines for each aggregate query
+    // Chart data
     const chartPipeline = [
       ...basePipeline,
       ...(timeGroup
@@ -3425,7 +3420,25 @@ app.get("/das", isLogin, isReq, async (req, res) => {
       )
     ];
 
-    const topRequestorsPipeline = [
+    const chartData = await requestCollection.aggregate(chartPipeline).toArray();
+
+    // Totals & percentages
+    const totals = chartData.reduce((acc, item) => {
+      const status = item._id.status;
+      acc[status] = (acc[status] || 0) + item.count;
+      return acc;
+    }, {});
+    const grandTotal = Object.values(totals).reduce((a,b) => a+b, 0);
+    const percentages = {};
+    for (const [status, count] of Object.entries(totals)) {
+      percentages[status] = grandTotal ? ((count / grandTotal) * 100).toFixed(2) : 0;
+    }
+
+    // Insights
+    const insights = {};
+
+    // Top Requestors
+    insights.topRequestors = await requestCollection.aggregate([
       ...basePipeline,
       {
         $group: {
@@ -3443,7 +3456,7 @@ app.get("/das", isLogin, isReq, async (req, res) => {
         $project: {
           name: {
             $cond: [
-              { $and: [{ $ne: ["$firstName", null] }, { $ne: ["$lastName", null] }] },
+              { $and: [ { $ne: ["$firstName", null] }, { $ne: ["$lastName", null] } ] },
               { $concat: ["$firstName", " ", "$lastName"] },
               "Unknown"
             ]
@@ -3453,82 +3466,48 @@ app.get("/das", isLogin, isReq, async (req, res) => {
           count: 1
         }
       }
-    ];
+    ]).toArray();
 
-    const topAgesPipeline = [
+    // Top Ages
+    insights.topAges = await requestCollection.aggregate([
       ...basePipeline,
       { $group: { _id: "$residentArr.age", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 3 }
-    ];
+    ]).toArray();
 
-    const topPurokPipeline = [
+    // Top Purok
+    insights.topPurok = await requestCollection.aggregate([
       ...basePipeline,
       { $group: { _id: "$residentArr.purok", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 3 }
-    ];
+    ]).toArray();
 
-    const topDaysPipeline = [
+    // Top Days
+    insights.topDays = await requestCollection.aggregate([
       ...basePipeline,
       { $group: { _id: { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } }, count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 3 }
-    ];
+    ]).toArray();
 
-    // Run all aggregation queries in parallel
-    const [
-      chartData,
-      topRequestors,
-      topAges,
-      topPurok,
-      topDays,
-      totalRequests
-    ] = await Promise.all([
-      requestCollection.aggregate(chartPipeline).toArray(),
-      requestCollection.aggregate(topRequestorsPipeline).toArray(),
-      requestCollection.aggregate(topAgesPipeline).toArray(),
-      requestCollection.aggregate(topPurokPipeline).toArray(),
-      requestCollection.aggregate(topDaysPipeline).toArray(),
-      requestCollection.countDocuments(matchRequest)
-    ]);
+    // === Basic Prediction / Smoothing example ===
+    const totalRequests = await requestCollection.countDocuments(matchRequest);
+    insights.prediction = Math.round(totalRequests * 1.05); // +5% estimate
+    insights.smoothing = "Simple Exponential"; // placeholder
+    insights.avg = Math.round(totalRequests / 12);
+    insights.highestMonth = "N/A"; // you can compute based on month aggregation
+    insights.highest = 0;
+    insights.lowestMonth = "N/A";
+    insights.lowest = 0;
+    insights.momChange = 0;
 
-    // Calculate totals & percentages
-    const totals = chartData.reduce((acc, item) => {
-      const status = item._id.status;
-      acc[status] = (acc[status] || 0) + item.count;
-      return acc;
-    }, {});
-
-    const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
-
-    const percentages = {};
-    for (const [status, count] of Object.entries(totals)) {
-      percentages[status] = grandTotal ? ((count / grandTotal) * 100).toFixed(2) : 0;
-    }
-
-    // Prepare insights
-    const insights = {
-      topRequestors,
-      topAges,
-      topPurok,
-      topDays,
-      prediction: Math.round(totalRequests * 1.05), // +5% estimate
-      smoothing: "Simple Exponential", // placeholder
-      avg: Math.round(totalRequests / 12),
-      highestMonth: "N/A",
-      highest: 0,
-      lowestMonth: "N/A",
-      lowest: 0,
-      momChange: 0,
-    };
-
-    // Respond with JSON if AJAX/fetch request
+    // Respond
     if (req.get("X-Requested-With") === "fetch") {
       return res.json({ chartData, totals, percentages, grandTotal, insights });
     }
 
-    // Otherwise render page
     res.render("das", {
       layout: "layout",
       title: "Dashboard",
