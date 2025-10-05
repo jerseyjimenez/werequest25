@@ -394,70 +394,70 @@ const myReq = async (req, res, next) => {
   }
 };
 const isReq = async (req, res, next) => {
-  try {
-    // Ensure the user is logged in
-    if (!req.session.userId) {
-      return res.redirect("/");
+    try {
+        // Ensure the user is logged in by checking session
+        if (!req.session.userId) {
+            return res.redirect("/"); // Redirect if not logged in
+        }
+
+        // Fetch requests from the 'request' collection where archive is 0
+        const requests = await db.collection("request")
+            .find({ archive: { $in: [0, "0"] } })
+            .sort({ updatedAt: -1 }) // Sort by updatedAt descending
+            .toArray();
+
+        // Fetch corresponding resident, household, and requestFor data for each request
+        for (let request of requests) {
+            const resident = await db.collection("resident")
+                .findOne({ _id: new ObjectId(request.requestBy) }); // always ObjectId
+            request.resident = resident;
+
+            if (resident) {
+                // Attach household data
+                const household = await db.collection("household")
+                    .findOne({ _id: new ObjectId(resident.householdId) });
+                request.household = household;
+
+                // Fetch requestFor resident (the person the request is for)
+                if (request.requestFor) {
+                    let requestForId;
+
+                    // Check if already ObjectId or just a string
+                    if (ObjectId.isValid(request.requestFor)) {
+                        requestForId = new ObjectId(request.requestFor);
+                    } else if (typeof request.requestFor === "object" && request.requestFor._id) {
+                        requestForId = new ObjectId(request.requestFor._id);
+                    }
+
+                    if (requestForId) {
+                        const forResident = await db.collection("resident")
+                            .findOne({ _id: requestForId });
+                        request.requestForData = forResident;
+                    }
+                }
+            }
+        }
+
+        // Fetch corresponding documents for each request
+        for (let request of requests) {
+            const documents = await db.collection("document")
+                .find({ reqId: request._id }) // Fetch documents where reqId matches request._id
+                .toArray();
+            request.documents = documents;
+        }
+
+        // Attach the combined data to the request object
+        req.requests = requests;
+
+        // Set request as a global variable for all views
+        res.locals.requests = requests;
+
+        // Proceed to the next middleware
+        next();
+    } catch (err) {
+        console.error("Error in myReq middleware:", err.message);
+        res.status(500).send('<script>alert("Internal Server Error!"); window.location="/";</script>');
     }
-
-    // Optimized aggregation query to fetch all required data in one go
-    const requests = await db.collection("request").aggregate([
-      { $match: { archive: { $in: [0, "0"] } } },
-      { $sort: { updatedAt: -1 } },
-
-      // Lookup: Resident who made the request
-      {
-        $lookup: {
-          from: "resident",
-          localField: "requestBy",
-          foreignField: "_id",
-          as: "resident"
-        }
-      },
-      { $unwind: { path: "$resident", preserveNullAndEmptyArrays: true } },
-
-      // Lookup: Household of the resident
-      {
-        $lookup: {
-          from: "household",
-          localField: "resident.householdId",
-          foreignField: "_id",
-          as: "household"
-        }
-      },
-      { $unwind: { path: "$household", preserveNullAndEmptyArrays: true } },
-
-      // Lookup: The person for whom the request was made (requestFor)
-      {
-        $lookup: {
-          from: "resident",
-          localField: "requestFor",
-          foreignField: "_id",
-          as: "requestForData"
-        }
-      },
-      { $unwind: { path: "$requestForData", preserveNullAndEmptyArrays: true } },
-
-      // Lookup: Documents related to the request
-      {
-        $lookup: {
-          from: "document",
-          localField: "_id",
-          foreignField: "reqId",
-          as: "documents"
-        }
-      }
-    ]).toArray();
-
-    // Attach to request and response locals
-    req.requests = requests;
-    res.locals.requests = requests;
-
-    next();
-  } catch (err) {
-    console.error("Error in isReq middleware:", err.message);
-    res.status(500).send('<script>alert("Internal Server Error!"); window.location="/";</script>');
-  }
 };
 
 const isRsd = async (req, res, next) => {
@@ -3326,6 +3326,7 @@ app.get("/ovvR", isLogin, isReq, (req, res) => res.render("ovvR", { layout: "lay
 app.get("/ovvG", isLogin, isReq, (req, res) => res.render("ovvG", { layout: "layout", title: "Good Moral", activePage: "ovvG" }));
 app.get("/ovvC", isLogin, isReq, isRsd, (req, res) => res.render("ovvC", { layout: "layout", title: "Certification", activePage: "ovvC" }));
 app.get("/docc", isLogin, isReq, (req, res) => res.render("docc", { layout: "layout", title: "Document", activePage: "docc" }));
+
 app.get("/wc", isLogin, (req, res) => res.render("wc", { layout: "layout", title: "Document", activePage: "wc" }));
 
 app.get("/das", isLogin, isReq, async (req, res) => {
@@ -3545,6 +3546,7 @@ app.get("/das", isLogin, isReq, async (req, res) => {
     res.status(500).send("Server Error");
   }
 });
+
 app.get("/api/das-data", isLogin, isReq, async (req, res) => {
   try {
     const {
@@ -3568,31 +3570,26 @@ app.get("/api/das-data", isLogin, isReq, async (req, res) => {
       matchRequest.createdAt = { $gte: new Date(y, m, d), $lte: new Date(y, m, d, 23, 59, 59, 999) };
       timeGroup = { $hour: { date: "$createdAt", timezone: "Asia/Manila" } };
     } else if (filterDate === "week") {
-      const start = new Date(now);
-      start.setDate(d - day);
-      start.setHours(0,0,0,0);
-      const end = new Date(start);
-      end.setDate(start.getDate() + 6);
-      end.setHours(23,59,59,999);
+      const start = new Date(now); start.setDate(d - day); start.setHours(0,0,0,0);
+      const end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23,59,59,999);
       matchRequest.createdAt = { $gte: start, $lte: end };
       timeGroup = { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } };
     } else if (filterDate === "month") {
-      const start = new Date(y, m, 1);
-      const end = new Date(y, m + 1, 0, 23, 59, 59, 999);
+      const start = new Date(y, m, 1), end = new Date(y, m + 1, 0, 23, 59, 59, 999);
       matchRequest.createdAt = { $gte: start, $lte: end };
       timeGroup = { $dayOfMonth: { date: "$createdAt", timezone: "Asia/Manila" } };
     } else if (filterDate === "year") {
-      const start = new Date(y, 0, 1);
-      const end = new Date(y, 11, 31, 23, 59, 59, 999);
+      const start = new Date(y, 0, 1), end = new Date(y, 11, 31, 23, 59, 59, 999);
       matchRequest.createdAt = { $gte: start, $lte: end };
       timeGroup = { $month: { date: "$createdAt", timezone: "Asia/Manila" } };
-    }
-    // If filterDate is "all" or absent, we leave matchRequest as is
+    } 
+    // "All" case does NOT modify matchRequest or timeGroup — we group by year in pipeline
 
+    // === Type & purpose filters ===
     if (filterType) matchRequest.type = filterType;
     if (filterPurpose) matchRequest.purpose = filterPurpose;
 
-    // Base pipeline
+    // === Base pipeline with resident lookup ===
     const basePipeline = [
       { $match: matchRequest },
       {
@@ -3616,28 +3613,26 @@ app.get("/api/das-data", isLogin, isReq, async (req, res) => {
       },
       ...(filterGender ? [{ $match: { "residentArr.gender": filterGender } }] : []),
       ...(filterEmployment ? [{ $match: { "residentArr.employmentStatus": filterEmployment } }] : []),
-      ...(filterPriority
-        ? [{
-            $match: {
-              $or: [
-                { "residentArr.pregnant": "on" },
-                { "residentArr.pwd": "on" },
-                { "residentArr.soloParent": "on" }
-              ]
-            }
-          }]
-        : [])
+      ...(filterPriority ? [{
+        $match: {
+          $or: [
+            { "residentArr.pregnant": "on" },
+            { "residentArr.pwd": "on" },
+            { "residentArr.soloParent": "on" }
+          ]
+        }
+      }] : [])
     ];
 
-    // Pipelines for different charts / aggregations
+    // === Chart pipeline ===
     const chartPipeline = [
       ...basePipeline,
       {
         $group: {
           _id: (filterDate === "all" || !filterDate)
-            ? { time: { $year: "$createdAt" }, status: "$status" }
+            ? { time: { $year: "$createdAt" }, status: "$status" } // group by year
             : timeGroup
-              ? { time: timeGroup, status: "$status" }
+              ? { time: timeGroup, status: "$status" }           // other filters
               : { status: "$status" },
           count: { $sum: 1 }
         }
@@ -3645,163 +3640,226 @@ app.get("/api/das-data", isLogin, isReq, async (req, res) => {
       { $sort: { "_id.time": 1, "_id.status": 1 } }
     ];
 
-    const chartPerDocumentPipeline = [
-      ...basePipeline,
-      { $group: { _id: "$type", count: { $sum: 1 } } },
-      { $sort: { _id: 1 } }
-    ];
+    const chartData = await requestCollection.aggregate(chartPipeline).toArray();
 
-    const chartPerEmploymentPipeline = [
-      ...basePipeline,
-      { $group: { _id: "$residentArr.employmentStatus", count: { $sum: 1 } } },
-      { $sort: { _id: 1 } }
-    ];
-
-    const chartPerGenderPipeline = [
-      ...basePipeline,
-      { $group: { _id: "$residentArr.gender", count: { $sum: 1 } } },
-      { $sort: { _id: 1 } }
-    ];
-
-    const chartPerPriorityPipeline = [
-      ...basePipeline,
-      {
-        $project: {
-          pregnant: "$residentArr.pregnant",
-          pwd: "$residentArr.pwd",
-          soloParent: "$residentArr.soloParent"
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          pregnant: { $sum: { $cond: [{ $eq: ["$pregnant", "on"] }, 1, 0] } },
-          pwd: { $sum: { $cond: [{ $eq: ["$pwd", "on"] }, 1, 0] } },
-          soloParent: { $sum: { $cond: [{ $eq: ["$soloParent", "on"] }, 1, 0] } }
-        }
-      }
-    ];
-
-    const chartPerPWDTypePipeline = [
-      ...basePipeline,
-      { $group: { _id: "$residentArr.pwdType", count: { $sum: 1 } } },
-      { $sort: { _id: 1 } }
-    ];
-
-    const requestListPipeline = [
-      ...basePipeline,
-      { $sort: { createdAt: -1 } },
-      { $limit: 100 }, // limit to latest 100
-      {
-        $project: {
-          createdAt: 1,
-          status: 1,
-          tr: 1,
-          type: 1,
-          qty: 1,
-          purpose: 1,
-          "residentArr.firstName": 1,
-          "residentArr.middleName": 1,
-          "residentArr.lastName": 1,
-          "residentArr.extName": 1,
-          "residentArr.age": 1,
-          "residentArr.gender": 1,
-          "residentArr.employmentStatus": 1,
-          "residentArr.pregnant": 1,
-          "residentArr.pwd": 1,
-          "residentArr.soloParent": 1
-        }
-      }
-    ];
-
-    // Run all at the same time
-    const [
-      chartData,
-      chartPerDocument,
-      chartPerEmployment,
-      chartPerGender,
-      chartPerPriorityArr,
-      chartPerPWDType,
-      requestList,
-      totalRequests
-    ] = await Promise.all([
-      requestCollection.aggregate(chartPipeline).toArray(),
-      requestCollection.aggregate(chartPerDocumentPipeline).toArray(),
-      requestCollection.aggregate(chartPerEmploymentPipeline).toArray(),
-      requestCollection.aggregate(chartPerGenderPipeline).toArray(),
-      requestCollection.aggregate(chartPerPriorityPipeline).toArray(),
-      requestCollection.aggregate(chartPerPWDTypePipeline).toArray(),
-      requestCollection.aggregate(requestListPipeline).toArray(),
-      requestCollection.countDocuments(matchRequest)
-    ]);
-
-    // Process chartPerPriority
-    let chartPerPriority = [];
-    if (chartPerPriorityArr.length > 0) {
-      const row = chartPerPriorityArr[0];
-      chartPerPriority = [
-        {
-          _id: "Pregnant",
-          count: row.pregnant,
-          percentage: totalRequests > 0 ? ((row.pregnant / totalRequests) * 100).toFixed(2) : "0.00"
-        },
-        {
-          _id: "PWD",
-          count: row.pwd,
-          percentage: totalRequests > 0 ? ((row.pwd / totalRequests) * 100).toFixed(2) : "0.00"
-        },
-        {
-          _id: "Solo Parent",
-          count: row.soloParent,
-          percentage: totalRequests > 0 ? ((row.soloParent / totalRequests) * 100).toFixed(2) : "0.00"
-        }
-      ];
-    }
-
-    // Totals & percentages for chartData
+    // === Totals & percentages ===
     const totals = chartData.reduce((acc, item) => {
       const status = item._id.status;
       acc[status] = (acc[status] || 0) + item.count;
       return acc;
     }, {});
-    const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
+    const grandTotal = Object.values(totals).reduce((a,b) => a+b, 0);
     const percentages = {};
     for (const [status, count] of Object.entries(totals)) {
-      percentages[status] = grandTotal ? ((count / grandTotal) * 100).toFixed(2) : "0.00";
+      percentages[status] = grandTotal ? ((count / grandTotal) * 100).toFixed(2) : 0;
     }
 
-    // Build insights (you can extend further if needed)
-    const insights = {
-      prediction: Math.round(totalRequests * 1.05),
-      smoothing: "Simple Exponential",
-      avg: Math.round(totalRequests / 12),
-      highestMonth: "N/A",
-      highest: 0,
-      lowestMonth: "N/A",
-      lowest: 0,
-      momChange: 0
-    };
+    // === Insights === (unchanged)
+    const insights = {};
+    // Top Requestors
+    insights.topRequestors = await requestCollection.aggregate([
+      ...basePipeline,
+      {
+        $group: {
+          _id: "$requestFor",
+          count: { $sum: 1 },
+          firstName: { $first: "$residentArr.firstName" },
+          lastName: { $first: "$residentArr.lastName" },
+          age: { $first: "$residentArr.age" },
+          purok: { $first: "$residentArr.purok" }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 3 },
+      {
+        $project: {
+          name: {
+            $cond: [
+              { $and: [ { $ne: ["$firstName", null] }, { $ne: ["$lastName", null] } ] },
+              { $concat: ["$firstName", " ", "$lastName"] },
+              "Unknown"
+            ]
+          },
+          age: 1,
+          purok: 1,
+          count: 1
+        }
+      }
+    ]).toArray();
 
-    return res.json({
-      chartData,
-      totals,
-      percentages,
-      grandTotal,
-      insights,
-      chartPerDocument,
-      chartPerEmployment,
-      chartPerGender,
-      chartPerPriority,
-      chartPerPWDType,
-      requestList
-    });
+    // Top Ages
+    insights.topAges = await requestCollection.aggregate([
+      ...basePipeline,
+      { $group: { _id: "$residentArr.age", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 3 }
+    ]).toArray();
+
+    // Top Purok
+    insights.topPurok = await requestCollection.aggregate([
+      ...basePipeline,
+      { $group: { _id: "$residentArr.purok", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 3 }
+    ]).toArray();
+
+    // Top Days
+    insights.topDays = await requestCollection.aggregate([
+      ...basePipeline,
+      { $group: { _id: { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } }, count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 3 }
+    ]).toArray();
+
+    // === Prediction & smoothing ===
+    const totalRequests = await requestCollection.countDocuments(matchRequest);
+    insights.prediction = Math.round(totalRequests * 1.05);
+    insights.smoothing = "Simple Exponential";
+    insights.avg = Math.round(totalRequests / 12);
+    insights.highestMonth = "N/A";
+    insights.highest = 0;
+    insights.lowestMonth = "N/A";
+    insights.lowest = 0;
+    insights.momChange = 0;
+    const getFilteredPipeline = () => [...basePipeline];
+// === Requests per Document ===
+let chartPerDocument = await requestCollection.aggregate([
+  ...getFilteredPipeline(),
+  { $group: { _id: "$type", count: { $sum: 1 } } },
+  { $sort: { _id: 1 } }
+]).toArray();
+chartPerDocument = chartPerDocument.map(item => ({
+  ...item,
+  percentage: totalRequests > 0 ? ((item.count / totalRequests) * 100).toFixed(2) : 0
+}));
+
+// === Requests per Employment Status ===
+let chartPerEmployment = await requestCollection.aggregate([
+  ...getFilteredPipeline(),
+  { $group: { _id: "$residentArr.employmentStatus", count: { $sum: 1 } } },
+  { $sort: { _id: 1 } }
+]).toArray();
+chartPerEmployment = chartPerEmployment.map(item => ({
+  ...item,
+  percentage: totalRequests > 0 ? ((item.count / totalRequests) * 100).toFixed(2) : 0
+}));
+
+// === Requests per Gender ===
+let chartPerGender = await requestCollection.aggregate([
+  ...getFilteredPipeline(),
+  { $group: { _id: "$residentArr.gender", count: { $sum: 1 } } },
+  { $sort: { _id: 1 } }
+]).toArray();
+chartPerGender = chartPerGender.map(item => ({
+  ...item,
+  percentage: totalRequests > 0 ? ((item.count / totalRequests) * 100).toFixed(2) : 0
+}));
+
+// === Requests per Priority Group ===
+let chartPerPriority = await requestCollection.aggregate([
+  ...getFilteredPipeline(),
+  {
+    $project: {
+      pregnant: "$residentArr.pregnant",
+      pwd: "$residentArr.pwd",
+      soloParent: "$residentArr.soloParent"
+    }
+  },
+  {
+    $group: {
+      _id: null,
+      pregnant: { $sum: { $cond: [{ $eq: ["$pregnant", "on"] }, 1, 0] } },
+      pwd: { $sum: { $cond: [{ $eq: ["$pwd", "on"] }, 1, 0] } },
+      soloParent: { $sum: { $cond: [{ $eq: ["$soloParent", "on"] }, 1, 0] } }
+    }
+  }
+]).toArray();
+if (chartPerPriority.length) {
+  const row = chartPerPriority[0];
+  chartPerPriority = [
+    { _id: "Pregnant", count: row.pregnant, percentage: totalRequests > 0 ? ((row.pregnant / totalRequests) * 100).toFixed(2) : 0 },
+    { _id: "PWD", count: row.pwd, percentage: totalRequests > 0 ? ((row.pwd / totalRequests) * 100).toFixed(2) : 0 },
+    { _id: "Solo Parent", count: row.soloParent, percentage: totalRequests > 0 ? ((row.soloParent / totalRequests) * 100).toFixed(2) : 0 }
+  ];
+}
+
+// === Requests per PWD Type ===
+let chartPerPWDType = await requestCollection.aggregate([
+  ...getFilteredPipeline(),
+  { $group: { _id: "$residentArr.pwdType", count: { $sum: 1 } } },
+  { $sort: { _id: 1 } }
+]).toArray();
+chartPerPWDType = chartPerPWDType.map(item => ({
+  ...item,
+  percentage: totalRequests > 0 ? ((item.count / totalRequests) * 100).toFixed(2) : 0
+}));
+
+// === Complete Request List ===
+const requestList = await requestCollection.aggregate([
+  ...basePipeline,
+  {
+    $project: {
+      createdAt: 1,
+      status: 1,
+      tr: 1,
+      type: 1,
+      quantity: "$qty",
+      purpose: 1,
+      // Request By (owner of request)
+      requestBy: {
+        $concat: [
+          { $ifNull: ["$requestBy.firstName", ""] }, " ",
+          { $ifNull: ["$requestBy.middleName", ""] }, " ",
+          { $ifNull: ["$requestBy.lastName", ""] }, " ",
+          { $ifNull: ["$requestBy.extName", ""] }
+        ]
+      },
+      // Request For (person the request is for)
+      requestFor: {
+        $concat: [
+          { $ifNull: ["$residentArr.firstName", ""] }, " ",
+          { $ifNull: ["$residentArr.middleName", ""] }, " ",
+          { $ifNull: ["$residentArr.lastName", ""] }, " ",
+          { $ifNull: ["$residentArr.extName", ""] }
+        ]
+      },
+      age: "$residentArr.age",
+      gender: "$residentArr.gender",
+      employmentStatus: "$residentArr.employmentStatus",
+      priority: {
+        $cond: [
+          { $or: [
+            { $eq: ["$residentArr.pregnant", "on"] },
+            { $eq: ["$residentArr.pwd", "on"] },
+            { $eq: ["$residentArr.soloParent", "on"] }
+          ]},
+          "Yes",
+          "No"
+        ]
+      }
+    }
+  }
+]).toArray();
+
+    res.json({
+  chartData,
+  totals,
+  percentages,
+  grandTotal,
+  insights,
+  chartPerDocument,
+  chartPerEmployment,
+  chartPerGender,
+  chartPerPriority,
+  chartPerPWDType,
+  requestList
+});
 
   } catch (err) {
-    console.error("Error in /api/das-data:", err);
+    console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 });
-
 
 
 app.get("/srvAll", isLogin, isReq, (req, res) => res.render("srvAll", { layout: "layout", title: "Services", activePage: "srv" }));
