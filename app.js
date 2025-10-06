@@ -47,7 +47,7 @@ const store = new MongoDBStore({
 });
 
 // New: Catch session store errors
-store.on("error", function(error) {
+store.on("error", function (error) {
     console.error("Session Store Error:", error);
 });
 
@@ -55,13 +55,13 @@ app.set('trust proxy', 1);
 
 app.use(session({
     secret: process.env.SESSION_SECRET || "your_secret_key",
-    resave: false,
-    saveUninitialized: false,
-    store: store,
-    cookie: {
-        secure: process.env.NODE_ENV === "production",
-        httpOnly: true
-    }
+    resave: false,
+    saveUninitialized: false,
+    store: store,
+    cookie: {
+        secure: process.env.NODE_ENV === "production",
+        httpOnly: true
+    }
 }));
 
 const client = new MongoClient(process.env.MONGO_URI);
@@ -82,18 +82,18 @@ const requireAuth = (req, res, next) => {
 };
 
 cloudinary.config({
-  cloud_name: process.env.CLOUD_NAME,
-  api_key: process.env.API_KEY,
-  api_secret: process.env.API_SECRET
+    cloud_name: process.env.CLOUD_NAME,
+    api_key: process.env.API_KEY,
+    api_secret: process.env.API_SECRET
 });
 
 const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: "barangay_proofs",
-    allowed_formats: ["jpg", "png", "jpeg", "webp", "pdf", "doc", "docx"],
-    resource_type: "auto",
-  },
+    cloudinary: cloudinary,
+    params: {
+        folder: "barangay_proofs",
+        allowed_formats: ["jpg", "png", "jpeg", "webp", "pdf", "doc", "docx"],
+        resource_type: "auto",
+    },
 });
 
 const upload = multer({ storage });
@@ -136,7 +136,7 @@ const isLogin = async (req, res, next) => {
             suspend: { $in: [0, "0"] } // global filter
         }).toArray();
 
-      // ✅ 8. Fetch all residents involved in cases
+        // ✅ 8. Fetch all residents involved in cases
         let persons = [];
         if (cases.length > 0) {
             const allPersonIds = [
@@ -219,16 +219,17 @@ const sumDoc = async (req, res, next) => {
 };
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: {
         user: 'wilyn.sabatinasuncion@gmail.com',
         pass: 'kgaquwmapdezixat',
     },
     tls: {
-      rejectUnauthorized: false,
+        rejectUnauthorized: false,
     },
-  });
-  
+});
 
 const sumReq = async (req, res, next) => {
     try {
@@ -285,109 +286,109 @@ const isAnn = async (req, res, next) => {
 };
 
 const myReq = async (req, res, next) => {
-  try {
-    if (!req.user) {
-      console.log("User is not logged in.");
-      return res.redirect("/");
-    }
-
-    const sessionUserId = req.user._id;
-    console.log("🔎 Raw sessionUserId:", sessionUserId);
-
-    // convert to ObjectId if needed
-    let objectIdUserId;
-    if (typeof sessionUserId === "string" && ObjectId.isValid(sessionUserId)) {
-      objectIdUserId = new ObjectId(sessionUserId);
-    } else if (sessionUserId instanceof ObjectId) {
-      objectIdUserId = sessionUserId;
-    } else {
-      // fallback - try to coerce
-      objectIdUserId = new ObjectId(String(sessionUserId));
-    }
-    console.log("✅ Converted ObjectId:", objectIdUserId);
-
-    const query = {
-      requestBy: objectIdUserId,
-      archive: { $in: [0, "0"] }
-    };
-    console.log("🔍 Running query:", JSON.stringify(query, null, 2));
-
-    const requests = await db.collection("request")
-      .find(query)
-      .sort({ updatedAt: -1 })
-      .toArray();
-
-    console.log(`📌 Requests Found: ${requests.length}`);
-
-    if (requests.length > 0) {
-      // Attach documents (robust compare using string)
-      const requestIds = requests.map(r => r._id);
-      const documents = await db.collection("document")
-        .find({ reqId: { $in: requestIds } })
-        .toArray();
-
-      requests.forEach(request => {
-        request.documents = documents.filter(doc => String(doc.reqId) === String(request._id));
-      });
-
-      // helper to test "objectid-ness" for strings/instances
-      const isValidOid = (val) => {
-        if (!val) return false;
-        if (val instanceof ObjectId) return true;
-        if (typeof val === "string") return ObjectId.isValid(val);
-        try {
-          return ObjectId.isValid(String(val));
-        } catch (e) {
-          return false;
+    try {
+        if (!req.user) {
+            console.log("User is not logged in.");
+            return res.redirect("/");
         }
-      };
 
-      // collect unique resident ids (as strings) from request.requestFor
-      const residentIdSet = new Set();
-      requests.forEach(r => {
-        const rf = r.requestFor;
-        if (!rf || rf === "myself") return;
+        const sessionUserId = req.user._id;
+        console.log("🔎 Raw sessionUserId:", sessionUserId);
 
-        if (Array.isArray(rf)) {
-          rf.forEach(item => { if (isValidOid(item)) residentIdSet.add(String(item)); });
+        // convert to ObjectId if needed
+        let objectIdUserId;
+        if (typeof sessionUserId === "string" && ObjectId.isValid(sessionUserId)) {
+            objectIdUserId = new ObjectId(sessionUserId);
+        } else if (sessionUserId instanceof ObjectId) {
+            objectIdUserId = sessionUserId;
         } else {
-          if (isValidOid(rf)) residentIdSet.add(String(rf));
+            // fallback - try to coerce
+            objectIdUserId = new ObjectId(String(sessionUserId));
         }
-      });
+        console.log("✅ Converted ObjectId:", objectIdUserId);
 
-      if (residentIdSet.size > 0) {
-        const residentIds = Array.from(residentIdSet).map(id => new ObjectId(id));
-        const residents = await db.collection("resident")
-          .find({ _id: { $in: residentIds } })
-          .toArray();
+        const query = {
+            requestBy: objectIdUserId,
+            archive: { $in: [0, "0"] }
+        };
+        console.log("🔍 Running query:", JSON.stringify(query, null, 2));
 
-        // make a map for fast lookup
-        const residentsMap = Object.fromEntries(residents.map(r => [String(r._id), r]));
+        const requests = await db.collection("request")
+            .find(query)
+            .sort({ updatedAt: -1 })
+            .toArray();
 
-        // attach residentInfo (handle array or single)
-        requests.forEach(request => {
-          const rf = request.requestFor;
-          if (!rf || rf === "myself") return;
+        console.log(`📌 Requests Found: ${requests.length}`);
 
-          if (Array.isArray(rf)) {
-            const infos = rf.map(item => residentsMap[String(item)]).filter(Boolean);
-            if (infos.length) request.residentInfo = infos;
-          } else {
-            const match = residentsMap[String(rf)];
-            if (match) request.residentInfo = match;
-          }
-        });
-      }
+        if (requests.length > 0) {
+            // Attach documents (robust compare using string)
+            const requestIds = requests.map(r => r._id);
+            const documents = await db.collection("document")
+                .find({ reqId: { $in: requestIds } })
+                .toArray();
+
+            requests.forEach(request => {
+                request.documents = documents.filter(doc => String(doc.reqId) === String(request._id));
+            });
+
+            // helper to test "objectid-ness" for strings/instances
+            const isValidOid = (val) => {
+                if (!val) return false;
+                if (val instanceof ObjectId) return true;
+                if (typeof val === "string") return ObjectId.isValid(val);
+                try {
+                    return ObjectId.isValid(String(val));
+                } catch (e) {
+                    return false;
+                }
+            };
+
+            // collect unique resident ids (as strings) from request.requestFor
+            const residentIdSet = new Set();
+            requests.forEach(r => {
+                const rf = r.requestFor;
+                if (!rf || rf === "myself") return;
+
+                if (Array.isArray(rf)) {
+                    rf.forEach(item => { if (isValidOid(item)) residentIdSet.add(String(item)); });
+                } else {
+                    if (isValidOid(rf)) residentIdSet.add(String(rf));
+                }
+            });
+
+            if (residentIdSet.size > 0) {
+                const residentIds = Array.from(residentIdSet).map(id => new ObjectId(id));
+                const residents = await db.collection("resident")
+                    .find({ _id: { $in: residentIds } })
+                    .toArray();
+
+                // make a map for fast lookup
+                const residentsMap = Object.fromEntries(residents.map(r => [String(r._id), r]));
+
+                // attach residentInfo (handle array or single)
+                requests.forEach(request => {
+                    const rf = request.requestFor;
+                    if (!rf || rf === "myself") return;
+
+                    if (Array.isArray(rf)) {
+                        const infos = rf.map(item => residentsMap[String(item)]).filter(Boolean);
+                        if (infos.length) request.residentInfo = infos;
+                    } else {
+                        const match = residentsMap[String(rf)];
+                        if (match) request.residentInfo = match;
+                    }
+                });
+            }
+        }
+
+        req.requests = requests;
+        res.locals.requests = requests;
+        next();
+
+    } catch (err) {
+        console.error("⚠️ Error in myReq middleware:", err);
+        res.status(500).send('<script>alert("Internal Server Error!"); window.location="/";</script>');
     }
-
-    req.requests = requests;
-    res.locals.requests = requests;
-    next();
-
-  } catch (err) {
-    console.error("⚠️ Error in myReq middleware:", err);
-    res.status(500).send('<script>alert("Internal Server Error!"); window.location="/";</script>');
-  }
 };
 const isReq = async (req, res, next) => {
     try {
@@ -539,14 +540,14 @@ const isHr = async (req, res, next) => {
 };
 
 const getPublicIdFromUrl = (url) => {
-  try {
-    const parts = url.split("/upload/")[1]; // "v1698765432/uploads/abc123.jpg"
-    const withoutVersion = parts.split("/").slice(1).join("/"); // "uploads/abc123.jpg"
-    return withoutVersion.replace(/\.[^/.]+$/, ""); // "uploads/abc123"
-  } catch (err) {
-    console.error("Failed to extract public_id:", err);
-    return null;
-  }
+    try {
+        const parts = url.split("/upload/")[1]; // "v1698765432/uploads/abc123.jpg"
+        const withoutVersion = parts.split("/").slice(1).join("/"); // "uploads/abc123.jpg"
+        return withoutVersion.replace(/\.[^/.]+$/, ""); // "uploads/abc123"
+    } catch (err) {
+        console.error("Failed to extract public_id:", err);
+        return null;
+    }
 };
 
 // Routes
@@ -575,7 +576,7 @@ app.get("/1", isLogin, (req, res) => res.render("1", { layout: "design", title: 
 app.get("/complaintChart", isLogin, (req, res) => res.render("complaintChart", { layout: "layout", title: "Dashboard", activePage: "dsb" }));
 
 app.get("/design", isLogin, myReq, isAnn, (req, res) => res.render("design", { layout: "design", title: "Design", activePage: "design" }));
-const RECAPTCHA_SECRET_KEY = "6LcXjtgrAAAAAFM1zexPSsT29OGpHBIo7c_Rbhhf"; 
+const RECAPTCHA_SECRET_KEY = "6LcXjtgrAAAAAFM1zexPSsT29OGpHBIo7c_Rbhhf";
 
 app.post("/login", async (req, res) => {
     try {
@@ -633,17 +634,17 @@ app.post("/login", async (req, res) => {
 
     } catch (err) {
         console.error("Login Error:", err.message);
-        return res.render("index", { error: "An error occurred. Please try again later."});
+        return res.render("index", { error: "An error occurred. Please try again later." });
     }
 });
 
-app.post("/login2", async (req, res) => { 
+app.post("/login2", async (req, res) => {
     try {
         const { username, password, autoLogin } = req.body;
 
         // 🔹 Fetch user
-        const user = await db.collection("resident").findOne({ 
-            username: { $regex: new RegExp(`^${username}$`, "i") } 
+        const user = await db.collection("resident").findOne({
+            username: { $regex: new RegExp(`^${username}$`, "i") }
         });
 
         if (!user) {
@@ -725,7 +726,7 @@ app.get("/rst/:id", async (req, res) => {
         }
 
         // Render the password reset page with current password + id
-        res.render("rst", { 
+        res.render("rst", {
             userId: userId,
             currentPassword: user.password
         });
@@ -749,50 +750,50 @@ app.get("/logout", (req, res) => {
 });
 
 app.get("/ann", isLogin, async (req, res) => {
-  try {
-    const announcements = await db.collection("announcements").aggregate([
-      // Convert postBy to ObjectId if it’s a string
-      {
-        $addFields: {
-          postByObj: {
-            $cond: [
-              { $eq: [{ $type: "$postBy" }, "string"] }, // if type is string
-              { $toObjectId: "$postBy" },                // convert to ObjectId
-              "$postBy"                                  // else keep as is
-            ]
-          }
-        }
-      },
-      // Lookup resident details
-      {
-        $lookup: {
-          from: "resident",
-          localField: "postByObj",
-          foreignField: "_id",
-          as: "residentDetails"
-        }
-      },
-      // Flatten result but keep announcements even without resident
-      {
-        $unwind: {
-          path: "$residentDetails",
-          preserveNullAndEmptyArrays: true
-        }
-      },
-      // Sort by newest
-      { $sort: { createdAt: -1 } }
-    ]).toArray();
+    try {
+        const announcements = await db.collection("announcements").aggregate([
+            // Convert postBy to ObjectId if it’s a string
+            {
+                $addFields: {
+                    postByObj: {
+                        $cond: [
+                            { $eq: [{ $type: "$postBy" }, "string"] }, // if type is string
+                            { $toObjectId: "$postBy" },                // convert to ObjectId
+                            "$postBy"                                  // else keep as is
+                        ]
+                    }
+                }
+            },
+            // Lookup resident details
+            {
+                $lookup: {
+                    from: "resident",
+                    localField: "postByObj",
+                    foreignField: "_id",
+                    as: "residentDetails"
+                }
+            },
+            // Flatten result but keep announcements even without resident
+            {
+                $unwind: {
+                    path: "$residentDetails",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            // Sort by newest
+            { $sort: { createdAt: -1 } }
+        ]).toArray();
 
-    res.render("ann", {
-      layout: "layout",
-      title: "Announcements",
-      activePage: "ann",
-      announcements
-    });
-  } catch (err) {
-    console.error("❌ Error fetching announcements:", err.message);
-    res.status(500).send("Internal Server Error");
-  }
+        res.render("ann", {
+            layout: "layout",
+            title: "Announcements",
+            activePage: "ann",
+            announcements
+        });
+    } catch (err) {
+        console.error("❌ Error fetching announcements:", err.message);
+        res.status(500).send("Internal Server Error");
+    }
 });
 
 app.post("/newAnn", upload.single("image"), async (req, res) => {
@@ -852,69 +853,69 @@ app.post("/newAnn", upload.single("image"), async (req, res) => {
 });
 
 app.post("/editAnn/:id", isLogin, upload.single("image"), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { title, description } = req.body;
-    const image = req.file;
+    try {
+        const { id } = req.params;
+        const { title, description } = req.body;
+        const image = req.file;
 
-    // Validate ObjectId
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).send('<script>alert("Invalid announcement ID!"); window.location="/ann";</script>');
-    }
-
-    const objectId = new ObjectId(id);
-    const existingAnnouncement = await db.collection("announcements").findOne({ _id: objectId });
-
-    if (!existingAnnouncement) {
-      return res.status(404).send('<script>alert("Announcement not found!"); window.location="/ann";</script>');
-    }
-
-    // Build update object
-    const updateData = {
-      title: title?.trim() || existingAnnouncement.title,
-      description: description?.trim() || existingAnnouncement.description,
-      updatedAt: new Date(),
-    };
-
-    // If new image uploaded, replace Cloudinary image
-    if (image) {
-      try {
-        // Upload new image
-        const uploadedImage = await cloudinary.uploader.upload(image.path, {
-          folder: "barangay_announcements",
-          resource_type: "image",
-        });
-        updateData.image = uploadedImage.secure_url;
-
-        // Delete old image if exists
-        if (existingAnnouncement.image) {
-          const publicId = getPublicIdFromUrl(existingAnnouncement.image);
-          if (publicId) {
-            await cloudinary.uploader.destroy(publicId);
-            console.log("✅ Old image deleted:", publicId);
-          }
+        // Validate ObjectId
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).send('<script>alert("Invalid announcement ID!"); window.location="/ann";</script>');
         }
-      } catch (uploadErr) {
-        console.error("❌ Cloudinary upload error:", uploadErr);
-        return res.status(500).send('<script>alert("Error uploading new image. Please try again."); window.location="/ann";</script>');
-      }
-    }
 
-    // Update in database
-    const result = await db.collection("announcements").updateOne(
-      { _id: objectId },
-      { $set: updateData }
-    );
+        const objectId = new ObjectId(id);
+        const existingAnnouncement = await db.collection("announcements").findOne({ _id: objectId });
 
-    if (result.matchedCount > 0) {
-      return res.send('<script>alert("Announcement updated successfully!"); window.location="/ann";</script>');
-    } else {
-      return res.send('<script>alert("No changes were made!"); window.location="/ann";</script>');
+        if (!existingAnnouncement) {
+            return res.status(404).send('<script>alert("Announcement not found!"); window.location="/ann";</script>');
+        }
+
+        // Build update object
+        const updateData = {
+            title: title?.trim() || existingAnnouncement.title,
+            description: description?.trim() || existingAnnouncement.description,
+            updatedAt: new Date(),
+        };
+
+        // If new image uploaded, replace Cloudinary image
+        if (image) {
+            try {
+                // Upload new image
+                const uploadedImage = await cloudinary.uploader.upload(image.path, {
+                    folder: "barangay_announcements",
+                    resource_type: "image",
+                });
+                updateData.image = uploadedImage.secure_url;
+
+                // Delete old image if exists
+                if (existingAnnouncement.image) {
+                    const publicId = getPublicIdFromUrl(existingAnnouncement.image);
+                    if (publicId) {
+                        await cloudinary.uploader.destroy(publicId);
+                        console.log("✅ Old image deleted:", publicId);
+                    }
+                }
+            } catch (uploadErr) {
+                console.error("❌ Cloudinary upload error:", uploadErr);
+                return res.status(500).send('<script>alert("Error uploading new image. Please try again."); window.location="/ann";</script>');
+            }
+        }
+
+        // Update in database
+        const result = await db.collection("announcements").updateOne(
+            { _id: objectId },
+            { $set: updateData }
+        );
+
+        if (result.matchedCount > 0) {
+            return res.send('<script>alert("Announcement updated successfully!"); window.location="/ann";</script>');
+        } else {
+            return res.send('<script>alert("No changes were made!"); window.location="/ann";</script>');
+        }
+    } catch (err) {
+        console.error("❌ Error updating announcement:", err);
+        res.status(500).send('<script>alert("Error updating the announcement. Please try again."); window.location="/ann";</script>');
     }
-  } catch (err) {
-    console.error("❌ Error updating announcement:", err);
-    res.status(500).send('<script>alert("Error updating the announcement. Please try again."); window.location="/ann";</script>');
-  }
 });
 
 
@@ -924,7 +925,7 @@ app.post("/deleteAnn/:id", async (req, res) => {
     try {
         // Delete the announcement from the database using ObjectId
         await db.collection("announcements").deleteOne({ _id: new ObjectId(req.params.id) });
-        
+
         // Redirect to the announcements page after deletion
         res.redirect("/ann");
     } catch (err) {
@@ -935,10 +936,10 @@ app.post("/deleteAnn/:id", async (req, res) => {
 
 app.post("/add-resident", async (req, res) => {
     try {
-        const { 
-            firstName, middleName, lastName, extName, position, houseNo, purok, role, 
-            priority, priorityType, bDay, bMonth, bYear, birthPlace, gender, 
-            civilStatus, precinct, phone, email, headId, soloParent, pwd, indigent 
+        const {
+            firstName, middleName, lastName, extName, position, houseNo, purok, role,
+            priority, priorityType, bDay, bMonth, bYear, birthPlace, gender,
+            civilStatus, precinct, phone, email, headId, soloParent, pwd, indigent
         } = req.body;
 
         if (!firstName || !lastName || !houseNo || !purok || !role) {
@@ -958,8 +959,8 @@ app.post("/add-resident", async (req, res) => {
         let shouldSendEmail = true;
 
         const officialPositions = [
-            "Punong Barangay", "Barangay Kagawad", "Barangay Secretary", 
-            "Barangay Treasurer", "Barangay BHW", "Barangay BIC", 
+            "Punong Barangay", "Barangay Kagawad", "Barangay Secretary",
+            "Barangay Treasurer", "Barangay BHW", "Barangay BIC",
             "Barangay BNS", "Barangay BPO", "Barangay Clerk", "Barangay Worker"
         ];
 
@@ -1006,7 +1007,7 @@ app.post("/add-resident", async (req, res) => {
 
         const newResident = {
             firstName, middleName, lastName, extName, position, houseNo, purok, role,
-            priority, priorityType, bDay, bMonth, bYear, birthPlace, gender, 
+            priority, priorityType, bDay, bMonth, bYear, birthPlace, gender,
             civilStatus, precinct, phone, email, username, password,
             access,
             archive: 0, headId,
@@ -1093,7 +1094,7 @@ app.get("/arcRsd", isLogin, async (req, res) => {
             // Get family details
             const familyData = familyMap.get(String(resident.familyId)) || { poverty: "No Income" };
             resident.familyPoverty = familyData.poverty;
-        }); 
+        });
 
         // Get total counts from actual collections
         const totalHouseholds = households.length;
@@ -1110,7 +1111,7 @@ app.get("/arcRsd", isLogin, async (req, res) => {
             totalFamilies,
             totalInhabitants,
             totalVoters,
-            titlePage : "Records of INHABITANTS",
+            titlePage: "Records of INHABITANTS",
             moment
         });
     } catch (err) {
@@ -1156,7 +1157,7 @@ app.get("/res", isLogin, async (req, res) => {
             // Get family details
             const familyData = familyMap.get(String(resident.familyId)) || { poverty: "No Income" };
             resident.familyPoverty = familyData.poverty;
-        }); 
+        });
 
         // Get total counts from actual collections
         const totalHouseholds = households.length;
@@ -1173,7 +1174,7 @@ app.get("/res", isLogin, async (req, res) => {
             totalFamilies,
             totalInhabitants,
             totalVoters,
-            titlePage : "Records of INHABITANTS",
+            titlePage: "Records of INHABITANTS",
             moment
         });
     } catch (err) {
@@ -1186,8 +1187,10 @@ app.get("/res", isLogin, async (req, res) => {
 app.get("/ver", isLogin, async (req, res) => {
     try {
         const residents = await db.collection("resident")
-            .find({ archive: { $in: [1, "1"] },
-            verify: { $in: [1, "1"] } })
+            .find({
+                archive: { $in: [1, "1"] },
+                verify: { $in: [1, "1"] }
+            })
             .sort({ firstName: 1 })
             .toArray();
 
@@ -1220,7 +1223,7 @@ app.get("/ver", isLogin, async (req, res) => {
             // Get family details
             const familyData = familyMap.get(String(resident.familyId)) || { poverty: "No Income" };
             resident.familyPoverty = familyData.poverty;
-        }); 
+        });
 
         // Get total counts from actual collections
         const totalHouseholds = households.length;
@@ -1237,7 +1240,7 @@ app.get("/ver", isLogin, async (req, res) => {
             totalFamilies,
             totalInhabitants,
             totalVoters,
-            titlePage : "Records of INHABITANTS",
+            titlePage: "Records of INHABITANTS",
             moment
         });
     } catch (err) {
@@ -1284,7 +1287,7 @@ app.get("/archiv", isLogin, async (req, res) => {
             // Get family details
             const familyData = familyMap.get(String(resident.familyId)) || { poverty: "No Income" };
             resident.familyPoverty = familyData.poverty;
-        }); 
+        });
 
         // Get total counts from actual collections
         const totalHouseholds = households.length;
@@ -1301,7 +1304,7 @@ app.get("/archiv", isLogin, async (req, res) => {
             totalFamilies,
             totalInhabitants,
             totalVoters,
-            titlePage : "Records of INHABITANTS",
+            titlePage: "Records of INHABITANTS",
             moment
         });
     } catch (err) {
@@ -1311,80 +1314,80 @@ app.get("/archiv", isLogin, async (req, res) => {
 });
 
 app.get("/prior", isLogin, async (req, res) => {
-  try {
-    const residentRaw = await db.collection("resident")
-  .find({ archive: { $in: [0, "0"] } }) // no $or here!
-  .sort({ firstName: 1 })
-  .toArray();
+    try {
+        const residentRaw = await db.collection("resident")
+            .find({ archive: { $in: [0, "0"] } }) // no $or here!
+            .sort({ firstName: 1 })
+            .toArray();
 
-    const households = await db.collection("household")
-      .find({ archive: { $in: [0, "0"] } })
-      .toArray();
+        const households = await db.collection("household")
+            .find({ archive: { $in: [0, "0"] } })
+            .toArray();
 
-    const families = await db.collection("family")
-      .find({ archive: { $in: [0, "0"] } })
-      .toArray();
+        const families = await db.collection("family")
+            .find({ archive: { $in: [0, "0"] } })
+            .toArray();
 
-    // Function to calculate age from birthdate (Handles Month Names)
-    function calculateAge(bMonth, bDay, bYear) {
-      if (!bMonth || !bDay || !bYear) return 0;
+        // Function to calculate age from birthdate (Handles Month Names)
+        function calculateAge(bMonth, bDay, bYear) {
+            if (!bMonth || !bDay || !bYear) return 0;
 
-      // Convert month name to number if needed
-      const monthNumber = isNaN(bMonth) ? moment().month(bMonth).format("M") : bMonth;
-      return moment().diff(`${bYear}-${monthNumber}-${bDay}`, 'years');
+            // Convert month name to number if needed
+            const monthNumber = isNaN(bMonth) ? moment().month(bMonth).format("M") : bMonth;
+            return moment().diff(`${bYear}-${monthNumber}-${bDay}`, 'years');
+        }
+
+        // ✅ Add senior citizens (>= 60) to the filtered set
+        const residents = residentRaw.filter(r =>
+            calculateAge(r.bMonth, r.bDay, r.bYear) >= 60 ||
+            r.pregnant === "on" || r.pregnant === "Yes" ||
+            r.pwd === "on" || r.pwd === "Yes" ||
+            r.soloParent === "on" || r.soloParent === "Yes"
+        );
+
+        // Map household and family data
+        const householdMap = new Map();
+        households.forEach(household => {
+            householdMap.set(String(household._id), { houseNo: household.houseNo, purok: household.purok });
+        });
+
+        const familyMap = new Map();
+        families.forEach(family => {
+            familyMap.set(String(family._id), { poverty: family.poverty });
+        });
+
+        // Process residents
+        residents.forEach(resident => {
+            const householdData = householdMap.get(String(resident.householdId)) || { houseNo: "-", purok: "-" };
+            resident.houseNo = householdData.houseNo;
+            resident.purok = householdData.purok;
+
+            const familyData = familyMap.get(String(resident.familyId)) || { poverty: "No Income" };
+            resident.familyPoverty = familyData.poverty;
+        });
+
+        // Get total counts
+        const totalHouseholds = households.length;
+        const totalFamilies = families.length;
+        const totalInhabitants = residents.length;
+        const totalVoters = residents.filter(resident => resident.precinct === "Registered Voter").length;
+
+        res.render("prior", {
+            layout: "layout",
+            title: "Residents",
+            activePage: "rsd",
+            residents,
+            totalHouseholds,
+            totalFamilies,
+            totalInhabitants,
+            totalVoters,
+            titlePage: "Priority Groups List",
+            moment
+        });
+    } catch (err) {
+        console.error("❌ Error fetching residents:", err);
+        res.status(500).send('<script>alert("Internal Server Error! Please try again."); window.location="/";</script>');
     }
-
-    // ✅ Add senior citizens (>= 60) to the filtered set
-    const residents = residentRaw.filter(r =>
-      calculateAge(r.bMonth, r.bDay, r.bYear) >= 60 ||
-      r.pregnant === "on" || r.pregnant === "Yes" ||
-      r.pwd === "on" || r.pwd === "Yes" ||
-      r.soloParent === "on" || r.soloParent === "Yes"
-    );
-
-    // Map household and family data
-    const householdMap = new Map();
-    households.forEach(household => {
-      householdMap.set(String(household._id), { houseNo: household.houseNo, purok: household.purok });
-    });
-
-    const familyMap = new Map();
-    families.forEach(family => {
-      familyMap.set(String(family._id), { poverty: family.poverty });
-    });
-
-    // Process residents
-    residents.forEach(resident => {
-      const householdData = householdMap.get(String(resident.householdId)) || { houseNo: "-", purok: "-" };
-      resident.houseNo = householdData.houseNo;
-      resident.purok = householdData.purok;
-
-      const familyData = familyMap.get(String(resident.familyId)) || { poverty: "No Income" };
-      resident.familyPoverty = familyData.poverty;
-    });
-
-    // Get total counts
-    const totalHouseholds = households.length;
-    const totalFamilies = families.length;
-    const totalInhabitants = residents.length;
-    const totalVoters = residents.filter(resident => resident.precinct === "Registered Voter").length;
-
-    res.render("prior", {
-      layout: "layout",
-      title: "Residents",
-      activePage: "rsd",
-      residents,
-      totalHouseholds,
-      totalFamilies,
-      totalInhabitants,
-      totalVoters,
-      titlePage: "Priority Groups List",
-      moment
-    });
-  } catch (err) {
-    console.error("❌ Error fetching residents:", err);
-    res.status(500).send('<script>alert("Internal Server Error! Please try again."); window.location="/";</script>');
-  }
 });
 
 app.get("/rsdD", isLogin, async (req, res) => {
@@ -1453,7 +1456,7 @@ app.get("/rsdD", isLogin, async (req, res) => {
             totalFamilies,
             totalInhabitants,
             totalVoters,
-            titlePage : "Residents from Purok Dike"
+            titlePage: "Residents from Purok Dike"
         });
     } catch (err) {
         console.error("❌ Error fetching Dike residents:", err);
@@ -1527,7 +1530,7 @@ app.get("/rsdC", isLogin, async (req, res) => {
             totalFamilies,
             totalInhabitants,
             totalVoters,
-            titlePage : "Residents from Purok Cantarilla"
+            titlePage: "Residents from Purok Cantarilla"
         });
     } catch (err) {
         console.error("❌ Error fetching Dike residents:", err);
@@ -1601,7 +1604,7 @@ app.get("/rsdP", isLogin, async (req, res) => {
             totalFamilies,
             totalInhabitants,
             totalVoters,
-            titlePage : "Residents from Purok Perigola"
+            titlePage: "Residents from Purok Perigola"
         });
     } catch (err) {
         console.error("❌ Error fetching Dike residents:", err);
@@ -1675,7 +1678,7 @@ app.get("/rsdB", isLogin, async (req, res) => {
             totalFamilies,
             totalInhabitants,
             totalVoters,
-            titlePage : "Residents from Purok Bagong Daan"
+            titlePage: "Residents from Purok Bagong Daan"
         });
     } catch (err) {
         console.error("❌ Error fetching Dike residents:", err);
@@ -1749,7 +1752,7 @@ app.get("/rsdS", isLogin, async (req, res) => {
             totalFamilies,
             totalInhabitants,
             totalVoters,
-            titlePage : "Residents from Purok Shortcut"
+            titlePage: "Residents from Purok Shortcut"
         });
     } catch (err) {
         console.error("❌ Error fetching Dike residents:", err);
@@ -1823,7 +1826,7 @@ app.get("/rsdH", isLogin, async (req, res) => {
             totalFamilies,
             totalInhabitants,
             totalVoters,
-            titlePage : "Residents from Purok Maharlika Highway"
+            titlePage: "Residents from Purok Maharlika Highway"
         });
     } catch (err) {
         console.error("❌ Error fetching Dike residents:", err);
@@ -1833,67 +1836,67 @@ app.get("/rsdH", isLogin, async (req, res) => {
 
 
 app.post("/reset-resident/:id", async (req, res) => {
-  if (!db) {
-    return res.status(500).json({ success: false, message: "Database not connected" });
-  }
-
-  const residentId = req.params.id;
-
-  function generateRandomPassword() {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
-    let password = "";
-    for (let i = 0; i < 12; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
-  }
-
-  const newPassword = generateRandomPassword();
-
-  try {
-    const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
-    if (!resident) {
-      return res.status(404).json({ success: false, message: "Resident not found" });
+    if (!db) {
+        return res.status(500).json({ success: false, message: "Database not connected" });
     }
 
-    const result = await db.collection("resident").updateOne(
-      { _id: new ObjectId(residentId) },
-      { $set: { password: newPassword } }
-    );
+    const residentId = req.params.id;
 
-    if (result.modifiedCount === 1) {
-      // ✅ Respond success immediately
-      res.json({ success: true, newPassword });
-
-      // 📧 Handle email sending in the background
-      let emailToSend = resident.email;
-      if (!emailToSend && resident.headId) {
-        const familyHead = await db.collection("resident").findOne({ _id: new ObjectId(resident.headId) });
-        emailToSend = familyHead ? familyHead.email : null;
-      }
-
-      if (emailToSend) {
-        const mailOptions = {
-          from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
-          to: emailToSend,
-          subject: 'Password Reset',
-          text: `Your new password is: ${newPassword}`,
-          html: `<strong>Your new password is: ${newPassword}</strong>`,
-        };
-
-        transporter.sendMail(mailOptions).catch((emailError) => {
-          console.error("Error sending email:", emailError);
-        });
-      } else {
-        console.warn("No email found for resident or family head, skipping email send.");
-      }
-    } else {
-      res.status(404).json({ success: false, message: "Resident not found or password not updated" });
+    function generateRandomPassword() {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
+        let password = "";
+        for (let i = 0; i < 12; i++) {
+            password += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return password;
     }
-  } catch (error) {
-    console.error("Error resetting password:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
-  }
+
+    const newPassword = generateRandomPassword();
+
+    try {
+        const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
+        if (!resident) {
+            return res.status(404).json({ success: false, message: "Resident not found" });
+        }
+
+        const result = await db.collection("resident").updateOne(
+            { _id: new ObjectId(residentId) },
+            { $set: { password: newPassword } }
+        );
+
+        if (result.modifiedCount === 1) {
+            // ✅ Respond success immediately
+            res.json({ success: true, newPassword });
+
+            // 📧 Handle email sending in the background
+            let emailToSend = resident.email;
+            if (!emailToSend && resident.headId) {
+                const familyHead = await db.collection("resident").findOne({ _id: new ObjectId(resident.headId) });
+                emailToSend = familyHead ? familyHead.email : null;
+            }
+
+            if (emailToSend) {
+                const mailOptions = {
+                    from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
+                    to: emailToSend,
+                    subject: 'Password Reset',
+                    text: `Your new password is: ${newPassword}`,
+                    html: `<strong>Your new password is: ${newPassword}</strong>`,
+                };
+
+                transporter.sendMail(mailOptions).catch((emailError) => {
+                    console.error("Error sending email:", emailError);
+                });
+            } else {
+                console.warn("No email found for resident or family head, skipping email send.");
+            }
+        } else {
+            res.status(404).json({ success: false, message: "Resident not found or password not updated" });
+        }
+    } catch (error) {
+        console.error("Error resetting password:", error);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
 });
 
 app.post("/suspend-resident/:id", async (req, res) => {
@@ -2302,55 +2305,55 @@ app.post("/update-resident/:id", async (req, res) => {
 });
 
 app.post("/upload-photo/:id", upload.single("photo"), async (req, res) => {
-  try {
-    const residentId = req.params.id;
+    try {
+        const residentId = req.params.id;
 
-    if (!req.file) {
-      return res.status(400).send("No file uploaded.");
+        if (!req.file) {
+            return res.status(400).send("No file uploaded.");
+        }
+
+        // Upload to Cloudinary
+        const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
+            folder: "resident_photos",
+            resource_type: "image"
+        });
+
+        await db.collection("resident").updateOne(
+            { _id: new ObjectId(residentId) },
+            { $set: { photo: uploadedImage.secure_url } }
+        );
+
+        res.redirect(`/resv/${residentId}`);
+    } catch (err) {
+        console.error("Error uploading photo:", err);
+        res.status(500).send("Error uploading photo.");
     }
-
-    // Upload to Cloudinary
-    const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
-      folder: "resident_photos",
-      resource_type: "image"
-    });
-
-    await db.collection("resident").updateOne(
-      { _id: new ObjectId(residentId) },
-      { $set: { photo: uploadedImage.secure_url } }
-    );
-
-    res.redirect(`/resv/${residentId}`);
-  } catch (err) {
-    console.error("Error uploading photo:", err);
-    res.status(500).send("Error uploading photo.");
-  }
 });
 
 app.post("/upload-my-photo", isLogin, upload.single("image"), async (req, res) => {
-  try {
-    const userId = req.session.userId;
+    try {
+        const userId = req.session.userId;
 
-    if (!req.file || !userId) {
-      return res.status(400).send("Missing file or session.");
+        if (!req.file || !userId) {
+            return res.status(400).send("Missing file or session.");
+        }
+
+        // Upload to Cloudinary
+        const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
+            folder: "resident_photos",
+            resource_type: "image"
+        });
+
+        await db.collection("resident").updateOne(
+            { _id: new ObjectId(userId) },
+            { $set: { photo: uploadedImage.secure_url } }
+        );
+
+        res.status(200).send("Photo uploaded successfully.");
+    } catch (err) {
+        console.error("Error uploading photo:", err);
+        res.status(500).send("Error uploading photo.");
     }
-
-    // Upload to Cloudinary
-    const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
-      folder: "resident_photos",
-      resource_type: "image"
-    });
-
-    await db.collection("resident").updateOne(
-      { _id: new ObjectId(userId) },
-      { $set: { photo: uploadedImage.secure_url } }
-    );
-
-    res.status(200).send("Photo uploaded successfully.");
-  } catch (err) {
-    console.error("Error uploading photo:", err);
-    res.status(500).send("Error uploading photo.");
-  }
 });
 
 app.post("/add-business", async (req, res) => {
@@ -2507,14 +2510,14 @@ app.post("/update-business/:id", isLogin, async (req, res) => {
         // Update the business data in the database
         const result = await db.collection("business").updateOne(
             { _id: new ObjectId(businessId) }, // Instantiate ObjectId with `new`
-            { 
+            {
                 $set: {
                     businessName,
-                    estDate, 
-                    businessType, 
-                    ownerName, 
-                    contactNumber, 
-                    houseNo, 
+                    estDate,
+                    businessType,
+                    ownerName,
+                    contactNumber,
+                    houseNo,
                     purok,
                     updatedAt: new Date()
                 }
@@ -2574,72 +2577,72 @@ app.post("/delete-business/:id", isLogin, async (req, res) => {
 });
 
 app.get("/viewBus/:id", isLogin, async (req, res) => {
-  try {
-    const businessId = req.params.id;
-    const business = await db.collection("business").findOne({ _id: new ObjectId(businessId) });
+    try {
+        const businessId = req.params.id;
+        const business = await db.collection("business").findOne({ _id: new ObjectId(businessId) });
 
-    if (!business) {
-      return res.status(404).send("Business not found!");
+        if (!business) {
+            return res.status(404).send("Business not found!");
+        }
+
+        // Get the owner from residents
+        let owner = null;
+        if (business.ownerName) {
+            const resident = await db.collection("resident").findOne({ _id: new ObjectId(business.ownerName) });
+
+            if (resident) {
+                // Fetch household info
+                const household = resident.householdId
+                    ? await db.collection("household").findOne({ _id: new ObjectId(resident.householdId) })
+                    : null;
+
+                // Fetch family info
+                const family = resident.familyId
+                    ? await db.collection("family").findOne({ _id: new ObjectId(resident.familyId) })
+                    : null;
+
+                owner = {
+                    _id: resident._id,
+                    firstName: resident.firstName,
+                    lastName: resident.lastName,
+                    phone: resident.phone || "-",
+                    purok: household?.purok || "-",
+                    houseNo: household?.houseNo || "-",
+                    familyPoverty: family?.poverty || "No Income"
+                };
+            }
+        }
+
+        // Safe estDate for EJS
+        business.estDateISO =
+            business.estDate && !isNaN(new Date(business.estDate))
+                ? new Date(business.estDate).toISOString().split("T")[0]
+                : "";
+
+        // Attach owner
+        business.owner = owner;
+
+        // Render the page to display the business details
+        res.render("viewBus", {
+            layout: "layout",
+            title: "Business",
+            activePage: "bss",
+            business
+        });
+
+    } catch (err) {
+        console.error("Error fetching business:", err.message);
+        res.status(500).send("Error fetching business.");
     }
-
-    // Get the owner from residents
-    let owner = null;
-    if (business.ownerName) {
-      const resident = await db.collection("resident").findOne({ _id: new ObjectId(business.ownerName) });
-
-      if (resident) {
-        // Fetch household info
-        const household = resident.householdId
-          ? await db.collection("household").findOne({ _id: new ObjectId(resident.householdId) })
-          : null;
-
-        // Fetch family info
-        const family = resident.familyId
-          ? await db.collection("family").findOne({ _id: new ObjectId(resident.familyId) })
-          : null;
-
-        owner = {
-          _id: resident._id,
-          firstName: resident.firstName,
-          lastName: resident.lastName,
-          phone: resident.phone || "-",
-          purok: household?.purok || "-",
-          houseNo: household?.houseNo || "-",
-          familyPoverty: family?.poverty || "No Income"
-        };
-      }
-    }
-
-    // Safe estDate for EJS
-    business.estDateISO =
-      business.estDate && !isNaN(new Date(business.estDate))
-        ? new Date(business.estDate).toISOString().split("T")[0]
-        : "";
-
-    // Attach owner
-    business.owner = owner;
-
-    // Render the page to display the business details
-    res.render("viewBus", {
-      layout: "layout",
-      title: "Business",
-      activePage: "bss",
-      business
-    });
-
-  } catch (err) {
-    console.error("Error fetching business:", err.message);
-    res.status(500).send("Error fetching business.");
-  }
 });
 
 app.get("/htl", isLogin, async (req, res) => {
     try {
         // Fetch hotline data where archive is 0, ordered by the 'office' field
         const hotlineData = await db.collection("hotline")
-    .find({ archive: { $in: [0, "0"] } })
-    .sort({ office: 1 })
-    .toArray();
+            .find({ archive: { $in: [0, "0"] } })
+            .sort({ office: 1 })
+            .toArray();
 
 
         // Render the page with hotline data
@@ -2659,9 +2662,9 @@ app.get("/cnt", isLogin, async (req, res) => {
     try {
         // Fetch hotline data where archive is 0, ordered by the 'office' field
         const hotlineData = await db.collection("hotline")
-    .find({ archive: { $in: [0, "0"] } })
-    .sort({ office: 1 })
-    .toArray();
+            .find({ archive: { $in: [0, "0"] } })
+            .sort({ office: 1 })
+            .toArray();
 
 
         // Render the page with hotline data
@@ -2857,7 +2860,7 @@ app.get("/hom", isLogin, isAnn, myReq, async (req, res) => {
         }
 
         // Fetch Complainee Cases where logged-in user is in the "name" array
-        const complaineeCases = await db.collection("complainees").find({ 
+        const complaineeCases = await db.collection("complainees").find({
             name: { $in: [userObjectId, userId] }
         }).toArray();
 
@@ -2870,9 +2873,9 @@ app.get("/hom", isLogin, isAnn, myReq, async (req, res) => {
         console.log("⚖️ Matched Case IDs:", caseObjectIds);
 
         const pendingCases = caseObjectIds.length
-            ? await db.collection("cases").countDocuments({ 
-                _id: { $in: caseObjectIds }, 
-                status: { $regex: /^pending$/i } 
+            ? await db.collection("cases").countDocuments({
+                _id: { $in: caseObjectIds },
+                status: { $regex: /^pending$/i }
             })
             : 0;
 
@@ -2908,7 +2911,7 @@ app.get("/reqM", isLogin, isAnn, myReq, async (req, res) => {
         console.log("👤 Logged-in User ID:", userObjectId);
 
         // Fetch Complainee Cases where logged-in user is in the "name" array
-        const complaineeCases = await db.collection("complainees").find({ 
+        const complaineeCases = await db.collection("complainees").find({
             name: { $in: [userObjectId, userId] }  // ✅ Matches either ObjectId or string
         }).toArray();
 
@@ -2957,7 +2960,7 @@ app.get("/mainReq", isLogin, isAnn, myReq, isRsd, async (req, res) => {
         console.log("👤 Logged-in User ID:", userObjectId);
 
         // Fetch Complainee Cases where logged-in user is in the "name" array
-        const complaineeCases = await db.collection("complainees").find({ 
+        const complaineeCases = await db.collection("complainees").find({
             name: { $in: [userObjectId, userId] }  // ✅ Matches either ObjectId or string
         }).toArray();
 
@@ -3006,7 +3009,7 @@ app.get("/terms", isLogin, isAnn, myReq, async (req, res) => {
         console.log("👤 Logged-in User ID:", userObjectId);
 
         // Fetch Complainee Cases where logged-in user is in the "name" array
-        const complaineeCases = await db.collection("complainees").find({ 
+        const complaineeCases = await db.collection("complainees").find({
             name: { $in: [userObjectId, userId] }  // ✅ Matches either ObjectId or string
         }).toArray();
 
@@ -3080,218 +3083,218 @@ const upload2 = multer({
 });
 
 app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
- const sessionUserId = req.session.userId;
+    const sessionUserId = req.session.userId;
 
-  try {
-    console.log("Request Body:", req.body);
+    try {
+        console.log("Request Body:", req.body);
 
-    let { type, qty, purpose, remarks, remarkMain, requestFor } = req.body;
+        let { type, qty, purpose, remarks, remarkMain, requestFor } = req.body;
 
-    // Upload proof files to Cloudinary
-    let proof = [];
-    if (req.files && req.files.length > 0) {
-    proof = req.files.map(file => file.path); // already Cloudinary URLs
-    }
+        // Upload proof files to Cloudinary
+        let proof = [];
+        if (req.files && req.files.length > 0) {
+            proof = req.files.map(file => file.path); // already Cloudinary URLs
+        }
 
-    // Ensure all inputs are arrays
-    type = [].concat(type);
-    qty = [].concat(qty).map(Number);
-    purpose = [].concat(purpose);
-    requestFor = [].concat(requestFor);
-    remarks = [].concat(remarks || []);
-    remarkMain = remarkMain || "";
+        // Ensure all inputs are arrays
+        type = [].concat(type);
+        qty = [].concat(qty).map(Number);
+        purpose = [].concat(purpose);
+        requestFor = [].concat(requestFor);
+        remarks = [].concat(remarks || []);
+        remarkMain = remarkMain || "";
 
-    console.log("Processed Data:", { type, qty, purpose, requestFor, proof, remarks, remarkMain });
+        console.log("Processed Data:", { type, qty, purpose, requestFor, proof, remarks, remarkMain });
 
-    // Validate lengths
-    if (type.length !== qty.length || type.length !== purpose.length || type.length !== requestFor.length) {
-      return res.status(400).send('<script>alert("Mismatch in document fields! Please try again."); window.location="/hom";</script>');
-    }
+        // Validate lengths
+        if (type.length !== qty.length || type.length !== purpose.length || type.length !== requestFor.length) {
+            return res.status(400).send('<script>alert("Mismatch in document fields! Please try again."); window.location="/hom";</script>');
+        }
 
-    if (!type.length || !qty.length || !purpose.length) {
-      return res.status(400).send('<script>alert("Please fill out all required fields."); window.location="/hom";</script>');
-    }
+        if (!type.length || !qty.length || !purpose.length) {
+            return res.status(400).send('<script>alert("Please fill out all required fields."); window.location="/hom";</script>');
+        }
 
-    // Fetch logged-in resident for email + indigent
-    const resident = await db.collection("resident").findOne({ _id: new ObjectId(sessionUserId) });
+        // Fetch logged-in resident for email + indigent
+        const resident = await db.collection("resident").findOne({ _id: new ObjectId(sessionUserId) });
 
-    // Manila time helper
-    const manilaNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+        // Manila time helper
+        const manilaNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
 
-    // Prepare documents to insert
-    const docsToInsert = type.map((docType, i) => {
-      const date = manilaNow();
-      const yyyy = date.getFullYear();
-      const mm = String(date.getMonth() + 1).padStart(2, "0");
-      const dd = String(date.getDate()).padStart(2, "0");
-      const formattedDate = `${yyyy}${mm}${dd}`;
-      const randomChars = Math.random().toString(36).substring(2, 8);
-      const tr = `DOC-${formattedDate}-${randomChars}`;
+        // Prepare documents to insert
+        const docsToInsert = type.map((docType, i) => {
+            const date = manilaNow();
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, "0");
+            const dd = String(date.getDate()).padStart(2, "0");
+            const formattedDate = `${yyyy}${mm}${dd}`;
+            const randomChars = Math.random().toString(36).substring(2, 8);
+            const tr = `DOC-${formattedDate}-${randomChars}`;
 
-      let status = "Pending";
-      if (docType === "Barangay Indigency") {
-        status = "Pending"; // Adjust logic if needed
-      }
+            let status = "Pending";
+            if (docType === "Barangay Indigency") {
+                status = "Pending"; // Adjust logic if needed
+            }
 
-      const requestForId = requestFor[i] ? new ObjectId(requestFor[i]) : new ObjectId(sessionUserId);
+            const requestForId = requestFor[i] ? new ObjectId(requestFor[i]) : new ObjectId(sessionUserId);
 
-      return {
-        tr,
-        createdAt: date,
-        updatedAt: date,
-        status,
-        archive: 0,
-        requestBy: new ObjectId(sessionUserId),
-        requestFor: requestForId,
-        remarkMain,
-        remarks: remarks[i] || "",
-        type: docType,
-        qty: qty[i] || 1,
-        purpose: purpose[i] || "",
-        proof: proof[i] || ""
-      };
-    });
+            return {
+                tr,
+                createdAt: date,
+                updatedAt: date,
+                status,
+                archive: 0,
+                requestBy: new ObjectId(sessionUserId),
+                requestFor: requestForId,
+                remarkMain,
+                remarks: remarks[i] || "",
+                type: docType,
+                qty: qty[i] || 1,
+                purpose: purpose[i] || "",
+                proof: proof[i] || ""
+            };
+        });
 
-    // Insert documents
-    await db.collection("request").insertMany(docsToInsert);
+        // Insert documents
+        await db.collection("request").insertMany(docsToInsert);
 
-    // Send response immediately before sending email
-    res.redirect("/reqSuccess");
+        // Send response immediately before sending email
+        res.redirect("/reqSuccess");
 
-    // Send email notification asynchronously after response
-    if (resident?.email) {
-      const mailOptions = {
-        from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
-        to: resident.email,
-        subject: "Document Request Submitted Successfully",
-        html: `
+        // Send email notification asynchronously after response
+        if (resident?.email) {
+            const mailOptions = {
+                from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
+                to: resident.email,
+                subject: "Document Request Submitted Successfully",
+                html: `
           <p style="font-size: 18px; text-align: center;">Your request has been submitted successfully!</p>
           <div style="font-size: 14px; text-align: center; font-weight: 500;">
             The Barangay Secretary will review your request within 24 hours on business days and will notify you via email regarding its status. Weekends are excluded.
           </div>
         `,
-      };
+            };
 
-      try {
-        await transporter.sendMail(mailOptions);
-        console.log("Email sent to:", resident.email);
-      } catch (emailError) {
-        console.error("Error sending email:", emailError);
-      }
+            try {
+                await transporter.sendMail(mailOptions);
+                console.log("Email sent to:", resident.email);
+            } catch (emailError) {
+                console.error("Error sending email:", emailError);
+            }
+        }
+
+    } catch (err) {
+        console.error("Error inserting request:", err);
+        res.status(500).send('<script>alert("Error inserting request! Please try again."); window.location="/hom";</script>');
     }
-
-  } catch (err) {
-    console.error("Error inserting request:", err);
-    res.status(500).send('<script>alert("Error inserting request! Please try again."); window.location="/hom";</script>');
-  }
 });
 
 app.post("/reqDocumentA", isLogin, upload.array("proof[]"), async (req, res) => {
-  const sessionUserId = req.session.userId;
+    const sessionUserId = req.session.userId;
 
-  try {
-    console.log("Request Body:", req.body);
+    try {
+        console.log("Request Body:", req.body);
 
-    let { type, qty, purpose, remarks, remarkMain, requestFor } = req.body;
+        let { type, qty, purpose, remarks, remarkMain, requestFor } = req.body;
 
-    // Upload proof files to Cloudinary
-    let proof = [];
-    if (req.files && req.files.length > 0) {
-    proof = req.files.map(file => file.path); // already Cloudinary URLs
-    }
+        // Upload proof files to Cloudinary
+        let proof = [];
+        if (req.files && req.files.length > 0) {
+            proof = req.files.map(file => file.path); // already Cloudinary URLs
+        }
 
-    // Ensure all inputs are arrays
-    type = [].concat(type);
-    qty = [].concat(qty).map(Number);
-    purpose = [].concat(purpose);
-    requestFor = [].concat(requestFor);
-    remarks = [].concat(remarks || []);
-    remarkMain = remarkMain || "";
+        // Ensure all inputs are arrays
+        type = [].concat(type);
+        qty = [].concat(qty).map(Number);
+        purpose = [].concat(purpose);
+        requestFor = [].concat(requestFor);
+        remarks = [].concat(remarks || []);
+        remarkMain = remarkMain || "";
 
-    console.log("Processed Data:", { type, qty, purpose, requestFor, proof, remarks, remarkMain });
+        console.log("Processed Data:", { type, qty, purpose, requestFor, proof, remarks, remarkMain });
 
-    // Validate lengths
-    if (type.length !== qty.length || type.length !== purpose.length || type.length !== requestFor.length) {
-      return res.status(400).send('<script>alert("Mismatch in document fields! Please try again."); window.location="/hom";</script>');
-    }
+        // Validate lengths
+        if (type.length !== qty.length || type.length !== purpose.length || type.length !== requestFor.length) {
+            return res.status(400).send('<script>alert("Mismatch in document fields! Please try again."); window.location="/hom";</script>');
+        }
 
-    if (!type.length || !qty.length || !purpose.length) {
-      return res.status(400).send('<script>alert("Please fill out all required fields."); window.location="/hom";</script>');
-    }
+        if (!type.length || !qty.length || !purpose.length) {
+            return res.status(400).send('<script>alert("Please fill out all required fields."); window.location="/hom";</script>');
+        }
 
-    // Fetch logged-in resident for email + indigent
-    const resident = await db.collection("resident").findOne({ _id: new ObjectId(sessionUserId) });
-    const residentIndigent = resident?.indigent || "";
+        // Fetch logged-in resident for email + indigent
+        const resident = await db.collection("resident").findOne({ _id: new ObjectId(sessionUserId) });
+        const residentIndigent = resident?.indigent || "";
 
-    // Manila time helper
-    const manilaNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+        // Manila time helper
+        const manilaNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
 
-    // Prepare documents to insert
-    const docsToInsert = type.map((docType, i) => {
-      const date = manilaNow();
-      const yyyy = date.getFullYear();
-      const mm = String(date.getMonth() + 1).padStart(2, "0");
-      const dd = String(date.getDate()).padStart(2, "0");
-      const formattedDate = `${yyyy}${mm}${dd}`;
-      const randomChars = Math.random().toString(36).substring(2, 8);
-      const tr = `DOC-${formattedDate}-${randomChars}`;
+        // Prepare documents to insert
+        const docsToInsert = type.map((docType, i) => {
+            const date = manilaNow();
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, "0");
+            const dd = String(date.getDate()).padStart(2, "0");
+            const formattedDate = `${yyyy}${mm}${dd}`;
+            const randomChars = Math.random().toString(36).substring(2, 8);
+            const tr = `DOC-${formattedDate}-${randomChars}`;
 
-      let status = "Pending";
-      if (docType === "Barangay Indigency") {
-        status = "Pending"; // adjust if needed
-      }
+            let status = "Pending";
+            if (docType === "Barangay Indigency") {
+                status = "Pending"; // adjust if needed
+            }
 
-      const requestForId = requestFor[i] ? new ObjectId(requestFor[i]) : new ObjectId(sessionUserId);
+            const requestForId = requestFor[i] ? new ObjectId(requestFor[i]) : new ObjectId(sessionUserId);
 
-      return {
-        tr,
-        createdAt: date,
-        updatedAt: date,
-        status,
-        archive: 0,
-        requestBy: new ObjectId(sessionUserId),
-        requestFor: requestForId,
-        remarkMain,
-        remarks: remarks[i] || "",
-        type: docType,
-        qty: qty[i] || 1,
-        purpose: purpose[i] || "",
-        proof: proof[i] || "",
-      };
-    });
+            return {
+                tr,
+                createdAt: date,
+                updatedAt: date,
+                status,
+                archive: 0,
+                requestBy: new ObjectId(sessionUserId),
+                requestFor: requestForId,
+                remarkMain,
+                remarks: remarks[i] || "",
+                type: docType,
+                qty: qty[i] || 1,
+                purpose: purpose[i] || "",
+                proof: proof[i] || "",
+            };
+        });
 
-    // Insert all documents
-    await db.collection("request").insertMany(docsToInsert);
+        // Insert all documents
+        await db.collection("request").insertMany(docsToInsert);
 
-    // Redirect to success page immediately
-    res.redirect("/reqSuccessA");
+        // Redirect to success page immediately
+        res.redirect("/reqSuccessA");
 
-    // Send email notification asynchronously after redirect
-    if (resident?.email) {
-      const mailOptions = {
-        from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
-        to: resident.email,
-        subject: "Document Request Submitted Successfully",
-        html: `
+        // Send email notification asynchronously after redirect
+        if (resident?.email) {
+            const mailOptions = {
+                from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
+                to: resident.email,
+                subject: "Document Request Submitted Successfully",
+                html: `
           <p style="font-size: 18px; text-align: center;">Your request has been submitted successfully!</p>
           <div style="font-size: 14px; text-align: center; font-weight: 500;">
             The Barangay Secretary will review your request within 24 hours on business days and will notify you via email regarding its status. Weekends are excluded.
           </div>
         `,
-      };
+            };
 
-      try {
-        await transporter.sendMail(mailOptions);
-        console.log("Email sent to:", resident.email);
-      } catch (emailError) {
-        console.error("Error sending email:", emailError);
-      }
+            try {
+                await transporter.sendMail(mailOptions);
+                console.log("Email sent to:", resident.email);
+            } catch (emailError) {
+                console.error("Error sending email:", emailError);
+            }
+        }
+
+    } catch (err) {
+        console.error("Error inserting request:", err);
+        res.status(500).send('<script>alert("Error inserting request! Please try again."); window.location="/hom";</script>');
     }
-
-  } catch (err) {
-    console.error("Error inserting request:", err);
-    res.status(500).send('<script>alert("Error inserting request! Please try again."); window.location="/hom";</script>');
-  }
 });
 
 
@@ -3317,515 +3320,517 @@ app.get("/docc", isLogin, isReq, (req, res) => res.render("docc", { layout: "lay
 
 app.get("/wc", isLogin, (req, res) => res.render("wc", { layout: "layout", title: "Document", activePage: "wc" }));
 app.get("/das", isLogin, isReq, async (req, res) => {
-  try {
-    const {
-      filterDate,
-      filterType,
-      filterPurpose,
-      filterGender,
-      filterEmployment,
-      filterPriority
-    } = req.query;
+    try {
+        const {
+            filterDate,
+            filterType,
+            filterPurpose,
+            filterGender,
+            filterEmployment,
+            filterPriority
+        } = req.query;
 
-    const requestCollection = db.collection("request");
-    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-    const y = now.getFullYear(), m = now.getMonth(), d = now.getDate(), day = now.getDay();
+        const requestCollection = db.collection("request");
+        const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+        const y = now.getFullYear(), m = now.getMonth(), d = now.getDate(), day = now.getDay();
 
-    // Base match
-    let matchRequest = { archive: 0 };
-    let timeGroup;
+        // Base match
+        let matchRequest = { archive: 0 };
+        let timeGroup;
 
-    // Date filtering
-    if (filterDate) {
-      if (filterDate === "today") {
-        matchRequest.createdAt = { 
-          $gte: new Date(y, m, d), 
-          $lte: new Date(y, m, d, 23, 59, 59, 999) 
-        };
-        timeGroup = { $hour: { date: "$createdAt", timezone: "Asia/Manila" } };
-      } else if (filterDate === "week") {
-        const start = new Date(now); start.setDate(d - day); start.setHours(0,0,0,0);
-        const end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23,59,59,999);
-        matchRequest.createdAt = { $gte: start, $lte: end };
-        timeGroup = { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } };
-      } else if (filterDate === "month") {
-        const start = new Date(y, m, 1);
-        const end = new Date(y, m + 1, 0, 23, 59, 59, 999);
-        matchRequest.createdAt = { $gte: start, $lte: end };
-        timeGroup = { $dayOfMonth: { date: "$createdAt", timezone: "Asia/Manila" } };
-      } else if (filterDate === "year") {
-        const start = new Date(y, 0, 1);
-        const end = new Date(y, 11, 31, 23, 59, 59, 999);
-        matchRequest.createdAt = { $gte: start, $lte: end };
-        timeGroup = { $month: { date: "$createdAt", timezone: "Asia/Manila" } };
-      }
+        // Date filtering
+        if (filterDate) {
+            if (filterDate === "today") {
+                matchRequest.createdAt = {
+                    $gte: new Date(y, m, d),
+                    $lte: new Date(y, m, d, 23, 59, 59, 999)
+                };
+                timeGroup = { $hour: { date: "$createdAt", timezone: "Asia/Manila" } };
+            } else if (filterDate === "week") {
+                const start = new Date(now); start.setDate(d - day); start.setHours(0, 0, 0, 0);
+                const end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23, 59, 59, 999);
+                matchRequest.createdAt = { $gte: start, $lte: end };
+                timeGroup = { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } };
+            } else if (filterDate === "month") {
+                const start = new Date(y, m, 1);
+                const end = new Date(y, m + 1, 0, 23, 59, 59, 999);
+                matchRequest.createdAt = { $gte: start, $lte: end };
+                timeGroup = { $dayOfMonth: { date: "$createdAt", timezone: "Asia/Manila" } };
+            } else if (filterDate === "year") {
+                const start = new Date(y, 0, 1);
+                const end = new Date(y, 11, 31, 23, 59, 59, 999);
+                matchRequest.createdAt = { $gte: start, $lte: end };
+                timeGroup = { $month: { date: "$createdAt", timezone: "Asia/Manila" } };
+            }
+        }
+
+        if (filterType) matchRequest.type = filterType;
+        if (filterPurpose) matchRequest.purpose = filterPurpose;
+
+        // Base pipeline
+        const basePipeline = [
+            { $match: matchRequest },
+            {
+                $lookup: {
+                    from: "resident",
+                    localField: "requestFor",
+                    foreignField: "_id",
+                    as: "residentArr"
+                }
+            },
+            { $unwind: { path: "$residentArr", preserveNullAndEmptyArrays: true } },
+            {
+                $addFields: {
+                    "residentArr.age": {
+                        $subtract: [
+                            new Date().getFullYear(),
+                            { $toInt: { $ifNull: ["$residentArr.bYear", 0] } }
+                        ]
+                    }
+                }
+            },
+            ...(filterGender ? [{ $match: { "residentArr.gender": filterGender } }] : []),
+            ...(filterEmployment ? [{ $match: { "residentArr.employmentStatus": filterEmployment } }] : []),
+            ...(filterPriority ? [{
+                $match: {
+                    $or: [
+                        { "residentArr.pregnant": "on" },
+                        { "residentArr.pwd": "on" },
+                        { "residentArr.soloParent": "on" }
+                    ]
+                }
+            }] : [])
+        ];
+
+        // Chart data
+        const chartPipeline = [
+            ...basePipeline,
+            ...(timeGroup
+                ? [{ $group: { _id: { time: timeGroup, status: "$status" }, count: { $sum: 1 } } }]
+                : [{ $group: { _id: { status: "$status" }, count: { $sum: 1 } } }]
+            )
+        ];
+
+        const chartData = await requestCollection.aggregate(chartPipeline).toArray();
+
+        // Totals & percentages
+        const totals = chartData.reduce((acc, item) => {
+            const status = item._id.status;
+            acc[status] = (acc[status] || 0) + item.count;
+            return acc;
+        }, {});
+        const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
+        const percentages = {};
+        for (const [status, count] of Object.entries(totals)) {
+            percentages[status] = grandTotal ? ((count / grandTotal) * 100).toFixed(2) : 0;
+        }
+
+        // Insights
+        const insights = {};
+
+        // Top Requestors
+        insights.topRequestors = await requestCollection.aggregate([
+            ...basePipeline,
+            {
+                $group: {
+                    _id: "$requestFor",
+                    count: { $sum: 1 },
+                    firstName: { $first: "$residentArr.firstName" },
+                    lastName: { $first: "$residentArr.lastName" },
+                    age: { $first: "$residentArr.age" },
+                    purok: { $first: "$residentArr.purok" }
+                }
+            },
+            { $sort: { count: -1 } },
+            { $limit: 3 },
+            {
+                $project: {
+                    name: {
+                        $cond: [
+                            { $and: [{ $ne: ["$firstName", null] }, { $ne: ["$lastName", null] }] },
+                            { $concat: ["$firstName", " ", "$lastName"] },
+                            "Unknown"
+                        ]
+                    },
+                    age: 1,
+                    purok: 1,
+                    count: 1
+                }
+            }
+        ]).toArray();
+
+        // Top Ages
+        insights.topAges = await requestCollection.aggregate([
+            ...basePipeline,
+            { $group: { _id: "$residentArr.age", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 3 }
+        ]).toArray();
+
+        // Top Purok
+        insights.topPurok = await requestCollection.aggregate([
+            ...basePipeline,
+            { $group: { _id: "$residentArr.purok", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 3 }
+        ]).toArray();
+
+        // Top Days
+        insights.topDays = await requestCollection.aggregate([
+            ...basePipeline,
+            { $group: { _id: { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } }, count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 3 }
+        ]).toArray();
+
+        // === Basic Prediction / Smoothing example ===
+        const totalRequests = await requestCollection.countDocuments(matchRequest);
+        insights.prediction = Math.round(totalRequests * 1.05); // +5% estimate
+        insights.smoothing = "Simple Exponential"; // placeholder
+        insights.avg = Math.round(totalRequests / 12);
+        insights.highestMonth = "N/A"; // you can compute based on month aggregation
+        insights.highest = 0;
+        insights.lowestMonth = "N/A";
+        insights.lowest = 0;
+        insights.momChange = 0;
+
+        // Respond
+        if (req.get("X-Requested-With") === "fetch") {
+            return res.json({ chartData, totals, percentages, grandTotal, insights });
+        }
+
+        res.render("das", {
+            layout: "layout",
+            title: "Dashboard",
+            activePage: "das",
+            chartData,
+            totals,
+            percentages,
+            grandTotal,
+            insights,
+            filters: { filterDate, filterType, filterPurpose, filterGender, filterEmployment, filterPriority }
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Server Error");
     }
-
-    if (filterType) matchRequest.type = filterType;
-    if (filterPurpose) matchRequest.purpose = filterPurpose;
-
-    // Base pipeline
-    const basePipeline = [
-      { $match: matchRequest },
-      {
-        $lookup: {
-          from: "resident",
-          localField: "requestFor",
-          foreignField: "_id",
-          as: "residentArr"
-        }
-      },
-      { $unwind: { path: "$residentArr", preserveNullAndEmptyArrays: true } },
-      {
-        $addFields: {
-          "residentArr.age": {
-            $subtract: [
-              new Date().getFullYear(),
-              { $toInt: { $ifNull: ["$residentArr.bYear", 0] } }
-            ]
-          }
-        }
-      },
-      ...(filterGender ? [{ $match: { "residentArr.gender": filterGender } }] : []),
-      ...(filterEmployment ? [{ $match: { "residentArr.employmentStatus": filterEmployment } }] : []),
-      ...(filterPriority ? [{
-        $match: {
-          $or: [
-            { "residentArr.pregnant": "on" },
-            { "residentArr.pwd": "on" },
-            { "residentArr.soloParent": "on" }
-          ]
-        }
-      }] : [])
-    ];
-
-    // Chart data
-    const chartPipeline = [
-      ...basePipeline,
-      ...(timeGroup
-        ? [{ $group: { _id: { time: timeGroup, status: "$status" }, count: { $sum: 1 } } }]
-        : [{ $group: { _id: { status: "$status" }, count: { $sum: 1 } } }]
-      )
-    ];
-
-    const chartData = await requestCollection.aggregate(chartPipeline).toArray();
-
-    // Totals & percentages
-    const totals = chartData.reduce((acc, item) => {
-      const status = item._id.status;
-      acc[status] = (acc[status] || 0) + item.count;
-      return acc;
-    }, {});
-    const grandTotal = Object.values(totals).reduce((a,b) => a+b, 0);
-    const percentages = {};
-    for (const [status, count] of Object.entries(totals)) {
-      percentages[status] = grandTotal ? ((count / grandTotal) * 100).toFixed(2) : 0;
-    }
-
-    // Insights
-    const insights = {};
-
-    // Top Requestors
-    insights.topRequestors = await requestCollection.aggregate([
-      ...basePipeline,
-      {
-        $group: {
-          _id: "$requestFor",
-          count: { $sum: 1 },
-          firstName: { $first: "$residentArr.firstName" },
-          lastName: { $first: "$residentArr.lastName" },
-          age: { $first: "$residentArr.age" },
-          purok: { $first: "$residentArr.purok" }
-        }
-      },
-      { $sort: { count: -1 } },
-      { $limit: 3 },
-      {
-        $project: {
-          name: {
-            $cond: [
-              { $and: [ { $ne: ["$firstName", null] }, { $ne: ["$lastName", null] } ] },
-              { $concat: ["$firstName", " ", "$lastName"] },
-              "Unknown"
-            ]
-          },
-          age: 1,
-          purok: 1,
-          count: 1
-        }
-      }
-    ]).toArray();
-
-    // Top Ages
-    insights.topAges = await requestCollection.aggregate([
-      ...basePipeline,
-      { $group: { _id: "$residentArr.age", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 3 }
-    ]).toArray();
-
-    // Top Purok
-    insights.topPurok = await requestCollection.aggregate([
-      ...basePipeline,
-      { $group: { _id: "$residentArr.purok", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 3 }
-    ]).toArray();
-
-    // Top Days
-    insights.topDays = await requestCollection.aggregate([
-      ...basePipeline,
-      { $group: { _id: { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } }, count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 3 }
-    ]).toArray();
-
-    // === Basic Prediction / Smoothing example ===
-    const totalRequests = await requestCollection.countDocuments(matchRequest);
-    insights.prediction = Math.round(totalRequests * 1.05); // +5% estimate
-    insights.smoothing = "Simple Exponential"; // placeholder
-    insights.avg = Math.round(totalRequests / 12);
-    insights.highestMonth = "N/A"; // you can compute based on month aggregation
-    insights.highest = 0;
-    insights.lowestMonth = "N/A";
-    insights.lowest = 0;
-    insights.momChange = 0;
-
-    // Respond
-    if (req.get("X-Requested-With") === "fetch") {
-      return res.json({ chartData, totals, percentages, grandTotal, insights });
-    }
-
-    res.render("das", {
-      layout: "layout",
-      title: "Dashboard",
-      activePage: "das",
-      chartData,
-      totals,
-      percentages,
-      grandTotal,
-      insights,
-      filters: { filterDate, filterType, filterPurpose, filterGender, filterEmployment, filterPriority }
-    });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Server Error");
-  }
 });
 
 app.get("/api/das-data", isLogin, isReq, async (req, res) => {
-  try {
-    const {
-      filterDate,
-      filterType,
-      filterPurpose,
-      filterGender,
-      filterEmployment,
-      filterPriority
-    } = req.query;
+    try {
+        const {
+            filterDate,
+            filterType,
+            filterPurpose,
+            filterGender,
+            filterEmployment,
+            filterPriority
+        } = req.query;
 
-    const requestCollection = db.collection("request");
-    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-    const y = now.getFullYear(), m = now.getMonth(), d = now.getDate(), day = now.getDay();
+        const requestCollection = db.collection("request");
+        const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+        const y = now.getFullYear(), m = now.getMonth(), d = now.getDate(), day = now.getDay();
 
-    let matchRequest = { archive: 0 };
-    let timeGroup = null;
+        let matchRequest = { archive: 0 };
+        let timeGroup = null;
 
-    // === Date filtering ===
-    if (filterDate === "today") {
-      matchRequest.createdAt = { $gte: new Date(y, m, d), $lte: new Date(y, m, d, 23, 59, 59, 999) };
-      timeGroup = { $hour: { date: "$createdAt", timezone: "Asia/Manila" } };
-    } else if (filterDate === "week") {
-      const start = new Date(now); start.setDate(d - day); start.setHours(0,0,0,0);
-      const end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23,59,59,999);
-      matchRequest.createdAt = { $gte: start, $lte: end };
-      timeGroup = { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } };
-    } else if (filterDate === "month") {
-      const start = new Date(y, m, 1), end = new Date(y, m + 1, 0, 23, 59, 59, 999);
-      matchRequest.createdAt = { $gte: start, $lte: end };
-      timeGroup = { $dayOfMonth: { date: "$createdAt", timezone: "Asia/Manila" } };
-    } else if (filterDate === "year") {
-      const start = new Date(y, 0, 1), end = new Date(y, 11, 31, 23, 59, 59, 999);
-      matchRequest.createdAt = { $gte: start, $lte: end };
-      timeGroup = { $month: { date: "$createdAt", timezone: "Asia/Manila" } };
-    } 
-    // "All" case does NOT modify matchRequest or timeGroup — we group by year in pipeline
-
-    // === Type & purpose filters ===
-    if (filterType) matchRequest.type = filterType;
-    if (filterPurpose) matchRequest.purpose = filterPurpose;
-
-    // === Base pipeline with resident lookup ===
-    const basePipeline = [
-      { $match: matchRequest },
-      {
-        $lookup: {
-          from: "resident",
-          localField: "requestFor",
-          foreignField: "_id",
-          as: "residentArr"
+        // === Date filtering ===
+        if (filterDate === "today") {
+            matchRequest.createdAt = { $gte: new Date(y, m, d), $lte: new Date(y, m, d, 23, 59, 59, 999) };
+            timeGroup = { $hour: { date: "$createdAt", timezone: "Asia/Manila" } };
+        } else if (filterDate === "week") {
+            const start = new Date(now); start.setDate(d - day); start.setHours(0, 0, 0, 0);
+            const end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23, 59, 59, 999);
+            matchRequest.createdAt = { $gte: start, $lte: end };
+            timeGroup = { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } };
+        } else if (filterDate === "month") {
+            const start = new Date(y, m, 1), end = new Date(y, m + 1, 0, 23, 59, 59, 999);
+            matchRequest.createdAt = { $gte: start, $lte: end };
+            timeGroup = { $dayOfMonth: { date: "$createdAt", timezone: "Asia/Manila" } };
+        } else if (filterDate === "year") {
+            const start = new Date(y, 0, 1), end = new Date(y, 11, 31, 23, 59, 59, 999);
+            matchRequest.createdAt = { $gte: start, $lte: end };
+            timeGroup = { $month: { date: "$createdAt", timezone: "Asia/Manila" } };
         }
-      },
-      { $unwind: { path: "$residentArr", preserveNullAndEmptyArrays: true } },
-      {
-        $addFields: {
-          "residentArr.age": {
-            $subtract: [
-              new Date().getFullYear(),
-              { $toInt: { $ifNull: ["$residentArr.bYear", 0] } }
-            ]
-          }
-        }
-      },
-      ...(filterGender ? [{ $match: { "residentArr.gender": filterGender } }] : []),
-      ...(filterEmployment ? [{ $match: { "residentArr.employmentStatus": filterEmployment } }] : []),
-      ...(filterPriority ? [{
-        $match: {
-          $or: [
-            { "residentArr.pregnant": "on" },
-            { "residentArr.pwd": "on" },
-            { "residentArr.soloParent": "on" }
-          ]
-        }
-      }] : [])
-    ];
+        // "All" case does NOT modify matchRequest or timeGroup — we group by year in pipeline
 
-    // === Chart pipeline ===
-    const chartPipeline = [
-      ...basePipeline,
-      {
-        $group: {
-          _id: (filterDate === "all" || !filterDate)
-            ? { time: { $year: "$createdAt" }, status: "$status" } // group by year
-            : timeGroup
-              ? { time: timeGroup, status: "$status" }           // other filters
-              : { status: "$status" },
-          count: { $sum: 1 }
+        // === Type & purpose filters ===
+        if (filterType) matchRequest.type = filterType;
+        if (filterPurpose) matchRequest.purpose = filterPurpose;
+
+        // === Base pipeline with resident lookup ===
+        const basePipeline = [
+            { $match: matchRequest },
+            {
+                $lookup: {
+                    from: "resident",
+                    localField: "requestFor",
+                    foreignField: "_id",
+                    as: "residentArr"
+                }
+            },
+            { $unwind: { path: "$residentArr", preserveNullAndEmptyArrays: true } },
+            {
+                $addFields: {
+                    "residentArr.age": {
+                        $subtract: [
+                            new Date().getFullYear(),
+                            { $toInt: { $ifNull: ["$residentArr.bYear", 0] } }
+                        ]
+                    }
+                }
+            },
+            ...(filterGender ? [{ $match: { "residentArr.gender": filterGender } }] : []),
+            ...(filterEmployment ? [{ $match: { "residentArr.employmentStatus": filterEmployment } }] : []),
+            ...(filterPriority ? [{
+                $match: {
+                    $or: [
+                        { "residentArr.pregnant": "on" },
+                        { "residentArr.pwd": "on" },
+                        { "residentArr.soloParent": "on" }
+                    ]
+                }
+            }] : [])
+        ];
+
+        // === Chart pipeline ===
+        const chartPipeline = [
+            ...basePipeline,
+            {
+                $group: {
+                    _id: (filterDate === "all" || !filterDate)
+                        ? { time: { $year: "$createdAt" }, status: "$status" } // group by year
+                        : timeGroup
+                            ? { time: timeGroup, status: "$status" }           // other filters
+                            : { status: "$status" },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { "_id.time": 1, "_id.status": 1 } }
+        ];
+
+        const chartData = await requestCollection.aggregate(chartPipeline).toArray();
+
+        // === Totals & percentages ===
+        const totals = chartData.reduce((acc, item) => {
+            const status = item._id.status;
+            acc[status] = (acc[status] || 0) + item.count;
+            return acc;
+        }, {});
+        const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
+        const percentages = {};
+        for (const [status, count] of Object.entries(totals)) {
+            percentages[status] = grandTotal ? ((count / grandTotal) * 100).toFixed(2) : 0;
         }
-      },
-      { $sort: { "_id.time": 1, "_id.status": 1 } }
-    ];
 
-    const chartData = await requestCollection.aggregate(chartPipeline).toArray();
+        // === Insights === (unchanged)
+        const insights = {};
+        // Top Requestors
+        insights.topRequestors = await requestCollection.aggregate([
+            ...basePipeline,
+            {
+                $group: {
+                    _id: "$requestFor",
+                    count: { $sum: 1 },
+                    firstName: { $first: "$residentArr.firstName" },
+                    lastName: { $first: "$residentArr.lastName" },
+                    age: { $first: "$residentArr.age" },
+                    purok: { $first: "$residentArr.purok" }
+                }
+            },
+            { $sort: { count: -1 } },
+            { $limit: 3 },
+            {
+                $project: {
+                    name: {
+                        $cond: [
+                            { $and: [{ $ne: ["$firstName", null] }, { $ne: ["$lastName", null] }] },
+                            { $concat: ["$firstName", " ", "$lastName"] },
+                            "Unknown"
+                        ]
+                    },
+                    age: 1,
+                    purok: 1,
+                    count: 1
+                }
+            }
+        ]).toArray();
 
-    // === Totals & percentages ===
-    const totals = chartData.reduce((acc, item) => {
-      const status = item._id.status;
-      acc[status] = (acc[status] || 0) + item.count;
-      return acc;
-    }, {});
-    const grandTotal = Object.values(totals).reduce((a,b) => a+b, 0);
-    const percentages = {};
-    for (const [status, count] of Object.entries(totals)) {
-      percentages[status] = grandTotal ? ((count / grandTotal) * 100).toFixed(2) : 0;
+        // Top Ages
+        insights.topAges = await requestCollection.aggregate([
+            ...basePipeline,
+            { $group: { _id: "$residentArr.age", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 3 }
+        ]).toArray();
+
+        // Top Purok
+        insights.topPurok = await requestCollection.aggregate([
+            ...basePipeline,
+            { $group: { _id: "$residentArr.purok", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 3 }
+        ]).toArray();
+
+        // Top Days
+        insights.topDays = await requestCollection.aggregate([
+            ...basePipeline,
+            { $group: { _id: { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } }, count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+            { $limit: 3 }
+        ]).toArray();
+
+        // === Prediction & smoothing ===
+        const totalRequests = await requestCollection.countDocuments(matchRequest);
+        insights.prediction = Math.round(totalRequests * 1.05);
+        insights.smoothing = "Simple Exponential";
+        insights.avg = Math.round(totalRequests / 12);
+        insights.highestMonth = "N/A";
+        insights.highest = 0;
+        insights.lowestMonth = "N/A";
+        insights.lowest = 0;
+        insights.momChange = 0;
+        const getFilteredPipeline = () => [...basePipeline];
+        // === Requests per Document ===
+        let chartPerDocument = await requestCollection.aggregate([
+            ...getFilteredPipeline(),
+            { $group: { _id: "$type", count: { $sum: 1 } } },
+            { $sort: { _id: 1 } }
+        ]).toArray();
+        chartPerDocument = chartPerDocument.map(item => ({
+            ...item,
+            percentage: totalRequests > 0 ? ((item.count / totalRequests) * 100).toFixed(2) : 0
+        }));
+
+        // === Requests per Employment Status ===
+        let chartPerEmployment = await requestCollection.aggregate([
+            ...getFilteredPipeline(),
+            { $group: { _id: "$residentArr.employmentStatus", count: { $sum: 1 } } },
+            { $sort: { _id: 1 } }
+        ]).toArray();
+        chartPerEmployment = chartPerEmployment.map(item => ({
+            ...item,
+            percentage: totalRequests > 0 ? ((item.count / totalRequests) * 100).toFixed(2) : 0
+        }));
+
+        // === Requests per Gender ===
+        let chartPerGender = await requestCollection.aggregate([
+            ...getFilteredPipeline(),
+            { $group: { _id: "$residentArr.gender", count: { $sum: 1 } } },
+            { $sort: { _id: 1 } }
+        ]).toArray();
+        chartPerGender = chartPerGender.map(item => ({
+            ...item,
+            percentage: totalRequests > 0 ? ((item.count / totalRequests) * 100).toFixed(2) : 0
+        }));
+
+        // === Requests per Priority Group ===
+        let chartPerPriority = await requestCollection.aggregate([
+            ...getFilteredPipeline(),
+            {
+                $project: {
+                    pregnant: "$residentArr.pregnant",
+                    pwd: "$residentArr.pwd",
+                    soloParent: "$residentArr.soloParent"
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    pregnant: { $sum: { $cond: [{ $eq: ["$pregnant", "on"] }, 1, 0] } },
+                    pwd: { $sum: { $cond: [{ $eq: ["$pwd", "on"] }, 1, 0] } },
+                    soloParent: { $sum: { $cond: [{ $eq: ["$soloParent", "on"] }, 1, 0] } }
+                }
+            }
+        ]).toArray();
+        if (chartPerPriority.length) {
+            const row = chartPerPriority[0];
+            chartPerPriority = [
+                { _id: "Pregnant", count: row.pregnant, percentage: totalRequests > 0 ? ((row.pregnant / totalRequests) * 100).toFixed(2) : 0 },
+                { _id: "PWD", count: row.pwd, percentage: totalRequests > 0 ? ((row.pwd / totalRequests) * 100).toFixed(2) : 0 },
+                { _id: "Solo Parent", count: row.soloParent, percentage: totalRequests > 0 ? ((row.soloParent / totalRequests) * 100).toFixed(2) : 0 }
+            ];
+        }
+
+        // === Requests per PWD Type ===
+        let chartPerPWDType = await requestCollection.aggregate([
+            ...getFilteredPipeline(),
+            { $group: { _id: "$residentArr.pwdType", count: { $sum: 1 } } },
+            { $sort: { _id: 1 } }
+        ]).toArray();
+        chartPerPWDType = chartPerPWDType.map(item => ({
+            ...item,
+            percentage: totalRequests > 0 ? ((item.count / totalRequests) * 100).toFixed(2) : 0
+        }));
+
+        // === Complete Request List ===
+        const requestList = await requestCollection.aggregate([
+            ...basePipeline,
+            {
+                $project: {
+                    createdAt: 1,
+                    status: 1,
+                    tr: 1,
+                    type: 1,
+                    quantity: "$qty",
+                    purpose: 1,
+                    // Request By (owner of request)
+                    requestBy: {
+                        $concat: [
+                            { $ifNull: ["$requestBy.firstName", ""] }, " ",
+                            { $ifNull: ["$requestBy.middleName", ""] }, " ",
+                            { $ifNull: ["$requestBy.lastName", ""] }, " ",
+                            { $ifNull: ["$requestBy.extName", ""] }
+                        ]
+                    },
+                    // Request For (person the request is for)
+                    requestFor: {
+                        $concat: [
+                            { $ifNull: ["$residentArr.firstName", ""] }, " ",
+                            { $ifNull: ["$residentArr.middleName", ""] }, " ",
+                            { $ifNull: ["$residentArr.lastName", ""] }, " ",
+                            { $ifNull: ["$residentArr.extName", ""] }
+                        ]
+                    },
+                    age: "$residentArr.age",
+                    gender: "$residentArr.gender",
+                    employmentStatus: "$residentArr.employmentStatus",
+                    priority: {
+                        $cond: [
+                            {
+                                $or: [
+                                    { $eq: ["$residentArr.pregnant", "on"] },
+                                    { $eq: ["$residentArr.pwd", "on"] },
+                                    { $eq: ["$residentArr.soloParent", "on"] }
+                                ]
+                            },
+                            "Yes",
+                            "No"
+                        ]
+                    }
+                }
+            }
+        ]).toArray();
+
+        res.json({
+            chartData,
+            totals,
+            percentages,
+            grandTotal,
+            insights,
+            chartPerDocument,
+            chartPerEmployment,
+            chartPerGender,
+            chartPerPriority,
+            chartPerPWDType,
+            requestList
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Server error" });
     }
-
-    // === Insights === (unchanged)
-    const insights = {};
-    // Top Requestors
-    insights.topRequestors = await requestCollection.aggregate([
-      ...basePipeline,
-      {
-        $group: {
-          _id: "$requestFor",
-          count: { $sum: 1 },
-          firstName: { $first: "$residentArr.firstName" },
-          lastName: { $first: "$residentArr.lastName" },
-          age: { $first: "$residentArr.age" },
-          purok: { $first: "$residentArr.purok" }
-        }
-      },
-      { $sort: { count: -1 } },
-      { $limit: 3 },
-      {
-        $project: {
-          name: {
-            $cond: [
-              { $and: [ { $ne: ["$firstName", null] }, { $ne: ["$lastName", null] } ] },
-              { $concat: ["$firstName", " ", "$lastName"] },
-              "Unknown"
-            ]
-          },
-          age: 1,
-          purok: 1,
-          count: 1
-        }
-      }
-    ]).toArray();
-
-    // Top Ages
-    insights.topAges = await requestCollection.aggregate([
-      ...basePipeline,
-      { $group: { _id: "$residentArr.age", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 3 }
-    ]).toArray();
-
-    // Top Purok
-    insights.topPurok = await requestCollection.aggregate([
-      ...basePipeline,
-      { $group: { _id: "$residentArr.purok", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 3 }
-    ]).toArray();
-
-    // Top Days
-    insights.topDays = await requestCollection.aggregate([
-      ...basePipeline,
-      { $group: { _id: { $dayOfWeek: { date: "$createdAt", timezone: "Asia/Manila" } }, count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 3 }
-    ]).toArray();
-
-    // === Prediction & smoothing ===
-    const totalRequests = await requestCollection.countDocuments(matchRequest);
-    insights.prediction = Math.round(totalRequests * 1.05);
-    insights.smoothing = "Simple Exponential";
-    insights.avg = Math.round(totalRequests / 12);
-    insights.highestMonth = "N/A";
-    insights.highest = 0;
-    insights.lowestMonth = "N/A";
-    insights.lowest = 0;
-    insights.momChange = 0;
-    const getFilteredPipeline = () => [...basePipeline];
-// === Requests per Document ===
-let chartPerDocument = await requestCollection.aggregate([
-  ...getFilteredPipeline(),
-  { $group: { _id: "$type", count: { $sum: 1 } } },
-  { $sort: { _id: 1 } }
-]).toArray();
-chartPerDocument = chartPerDocument.map(item => ({
-  ...item,
-  percentage: totalRequests > 0 ? ((item.count / totalRequests) * 100).toFixed(2) : 0
-}));
-
-// === Requests per Employment Status ===
-let chartPerEmployment = await requestCollection.aggregate([
-  ...getFilteredPipeline(),
-  { $group: { _id: "$residentArr.employmentStatus", count: { $sum: 1 } } },
-  { $sort: { _id: 1 } }
-]).toArray();
-chartPerEmployment = chartPerEmployment.map(item => ({
-  ...item,
-  percentage: totalRequests > 0 ? ((item.count / totalRequests) * 100).toFixed(2) : 0
-}));
-
-// === Requests per Gender ===
-let chartPerGender = await requestCollection.aggregate([
-  ...getFilteredPipeline(),
-  { $group: { _id: "$residentArr.gender", count: { $sum: 1 } } },
-  { $sort: { _id: 1 } }
-]).toArray();
-chartPerGender = chartPerGender.map(item => ({
-  ...item,
-  percentage: totalRequests > 0 ? ((item.count / totalRequests) * 100).toFixed(2) : 0
-}));
-
-// === Requests per Priority Group ===
-let chartPerPriority = await requestCollection.aggregate([
-  ...getFilteredPipeline(),
-  {
-    $project: {
-      pregnant: "$residentArr.pregnant",
-      pwd: "$residentArr.pwd",
-      soloParent: "$residentArr.soloParent"
-    }
-  },
-  {
-    $group: {
-      _id: null,
-      pregnant: { $sum: { $cond: [{ $eq: ["$pregnant", "on"] }, 1, 0] } },
-      pwd: { $sum: { $cond: [{ $eq: ["$pwd", "on"] }, 1, 0] } },
-      soloParent: { $sum: { $cond: [{ $eq: ["$soloParent", "on"] }, 1, 0] } }
-    }
-  }
-]).toArray();
-if (chartPerPriority.length) {
-  const row = chartPerPriority[0];
-  chartPerPriority = [
-    { _id: "Pregnant", count: row.pregnant, percentage: totalRequests > 0 ? ((row.pregnant / totalRequests) * 100).toFixed(2) : 0 },
-    { _id: "PWD", count: row.pwd, percentage: totalRequests > 0 ? ((row.pwd / totalRequests) * 100).toFixed(2) : 0 },
-    { _id: "Solo Parent", count: row.soloParent, percentage: totalRequests > 0 ? ((row.soloParent / totalRequests) * 100).toFixed(2) : 0 }
-  ];
-}
-
-// === Requests per PWD Type ===
-let chartPerPWDType = await requestCollection.aggregate([
-  ...getFilteredPipeline(),
-  { $group: { _id: "$residentArr.pwdType", count: { $sum: 1 } } },
-  { $sort: { _id: 1 } }
-]).toArray();
-chartPerPWDType = chartPerPWDType.map(item => ({
-  ...item,
-  percentage: totalRequests > 0 ? ((item.count / totalRequests) * 100).toFixed(2) : 0
-}));
-
-// === Complete Request List ===
-const requestList = await requestCollection.aggregate([
-  ...basePipeline,
-  {
-    $project: {
-      createdAt: 1,
-      status: 1,
-      tr: 1,
-      type: 1,
-      quantity: "$qty",
-      purpose: 1,
-      // Request By (owner of request)
-      requestBy: {
-        $concat: [
-          { $ifNull: ["$requestBy.firstName", ""] }, " ",
-          { $ifNull: ["$requestBy.middleName", ""] }, " ",
-          { $ifNull: ["$requestBy.lastName", ""] }, " ",
-          { $ifNull: ["$requestBy.extName", ""] }
-        ]
-      },
-      // Request For (person the request is for)
-      requestFor: {
-        $concat: [
-          { $ifNull: ["$residentArr.firstName", ""] }, " ",
-          { $ifNull: ["$residentArr.middleName", ""] }, " ",
-          { $ifNull: ["$residentArr.lastName", ""] }, " ",
-          { $ifNull: ["$residentArr.extName", ""] }
-        ]
-      },
-      age: "$residentArr.age",
-      gender: "$residentArr.gender",
-      employmentStatus: "$residentArr.employmentStatus",
-      priority: {
-        $cond: [
-          { $or: [
-            { $eq: ["$residentArr.pregnant", "on"] },
-            { $eq: ["$residentArr.pwd", "on"] },
-            { $eq: ["$residentArr.soloParent", "on"] }
-          ]},
-          "Yes",
-          "No"
-        ]
-      }
-    }
-  }
-]).toArray();
-
-    res.json({
-  chartData,
-  totals,
-  percentages,
-  grandTotal,
-  insights,
-  chartPerDocument,
-  chartPerEmployment,
-  chartPerGender,
-  chartPerPriority,
-  chartPerPWDType,
-  requestList
-});
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
 });
 
 
@@ -4108,7 +4113,7 @@ app.post("/release/:id", async (req, res) => {
         const resident = await db.collection("resident").findOne({ _id: new ObjectId(request.requestBy) });
 
         let message = "The document has been released!";
-        
+
         res.json({ success: true, message });
 
         if (resident?.email) {
@@ -4167,7 +4172,7 @@ app.post("/cancel/:id", async (req, res) => {
         const resident = await db.collection("resident").findOne({ _id: new ObjectId(request.requestBy) });
 
         let message = "The document has been cancelled!";
-        
+
         res.json({ success: true, message });
 
         if (resident?.email) {
@@ -4258,7 +4263,7 @@ app.get("/srvPrint/:id", isLogin, async (req, res) => {
 const moment = require("moment");
 const { error } = require("console");
 
- 
+
 app.get("/exportPDF", isLogin, async (req, res) => {
     try {
         // Fetch data from MongoDB
@@ -4348,14 +4353,14 @@ app.get("/exportPDF", isLogin, async (req, res) => {
         addTableRow(doc, x, y += rowHeight, "Registered Voters", registeredVoters, `${calcPercentage(registeredVoters)}%`);
         addTableRow(doc, x, y += rowHeight, "SK Voters", skVoters, `${calcPercentage(skVoters)}%`);
         y += rowHeight * 2; // Space before Age Distribution
-doc.fontSize(14).fillColor("#9bf6c6ff").text("Age Distribution", x, y).moveDown(1);
-doc.fillColor("#000000").fontSize(12);
+        doc.fontSize(14).fillColor("#9bf6c6ff").text("Age Distribution", x, y).moveDown(1);
+        doc.fillColor("#000000").fontSize(12);
 
-Object.keys(ageGroups).forEach((group) => {
-    addTableRow(doc, x, y += rowHeight, group, ageGroups[group], `${calcPercentage(ageGroups[group])}%`);
-});
+        Object.keys(ageGroups).forEach((group) => {
+            addTableRow(doc, x, y += rowHeight, group, ageGroups[group], `${calcPercentage(ageGroups[group])}%`);
+        });
 
-        
+
 
         // Finalize PDF
         doc.end();
@@ -4531,10 +4536,10 @@ app.get('/downloadAuthLetter', (req, res) => {
 });
 
 app.get('/reqView/:id', isLogin, myReqView);
-app.get('/acc', isRsd, (req, res) => { res.render("acc" , { layout: "layout", title: "Access", activePage: "rsd" })});
+app.get('/acc', isRsd, (req, res) => { res.render("acc", { layout: "layout", title: "Access", activePage: "rsd" }) });
 
 app.get("/export-residents", isLogin, (req, res) => {
-    res.render("downloading", { title: "", layout: "layout", activePage: ""});
+    res.render("downloading", { title: "", layout: "layout", activePage: "" });
 });
 
 
@@ -4560,70 +4565,70 @@ app.get("/download-residents", isLogin, async (req, res) => {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet("Residents");
 
-// 🟢 Add a title row
-worksheet.mergeCells("A1:T1"); // adjust range according to last column
-worksheet.getCell("A1").value = "Barangay San Andres - Residents List";
-worksheet.getCell("A1").font = { size: 16, bold: true };
-worksheet.getCell("A1").alignment = { vertical: "middle", horizontal: "center" };
+        // 🟢 Add a title row
+        worksheet.mergeCells("A1:T1"); // adjust range according to last column
+        worksheet.getCell("A1").value = "Barangay San Andres - Residents List";
+        worksheet.getCell("A1").font = { size: 16, bold: true };
+        worksheet.getCell("A1").alignment = { vertical: "middle", horizontal: "center" };
 
-// 🟢 Add a subtitle row
-worksheet.mergeCells("A2:T2");
-worksheet.getCell("A2").value = `Generated on: ${new Date().toLocaleDateString()}`;
-worksheet.getCell("A2").font = { size: 12, italic: true };
-worksheet.getCell("A2").alignment = { vertical: "middle", horizontal: "center" };
+        // 🟢 Add a subtitle row
+        worksheet.mergeCells("A2:T2");
+        worksheet.getCell("A2").value = `Generated on: ${new Date().toLocaleDateString()}`;
+        worksheet.getCell("A2").font = { size: 12, italic: true };
+        worksheet.getCell("A2").alignment = { vertical: "middle", horizontal: "center" };
 
-// 🟢 Leave one empty row
-worksheet.addRow([]);
+        // 🟢 Leave one empty row
+        worksheet.addRow([]);
 
-// 🟢 Define columns without auto header row
-worksheet.columns = [
-    { key: "completeName", width: 25 },
-    { key: "address", width: 25 },
-    { key: "birthday", width: 20 },
-    { key: "birthPlace", width: 20 },
-    { key: "phone", width: 15 },
-    { key: "email", width: 25 },
-    { key: "gender", width: 10 },
-    { key: "civilStatus", width: 15 },
-    { key: "precinct", width: 15 },
-    { key: "role", width: 15 },
-    { key: "priority", width: 15 },
-    { key: "priorityType", width: 20 },
-    { key: "pregnant", width: 12 },
-    { key: "soloParent", width: 15 },
-    { key: "pwd", width: 10 },
-    { key: "pwdType", width: 15 },
-    { key: "employmentStatus", width: 20 },
-    { key: "work", width: 20 },
-    { key: "monthlyIncome", width: 15 },
-    { key: "position", width: 20 }
-];
+        // 🟢 Define columns without auto header row
+        worksheet.columns = [
+            { key: "completeName", width: 25 },
+            { key: "address", width: 25 },
+            { key: "birthday", width: 20 },
+            { key: "birthPlace", width: 20 },
+            { key: "phone", width: 15 },
+            { key: "email", width: 25 },
+            { key: "gender", width: 10 },
+            { key: "civilStatus", width: 15 },
+            { key: "precinct", width: 15 },
+            { key: "role", width: 15 },
+            { key: "priority", width: 15 },
+            { key: "priorityType", width: 20 },
+            { key: "pregnant", width: 12 },
+            { key: "soloParent", width: 15 },
+            { key: "pwd", width: 10 },
+            { key: "pwdType", width: 15 },
+            { key: "employmentStatus", width: 20 },
+            { key: "work", width: 20 },
+            { key: "monthlyIncome", width: 15 },
+            { key: "position", width: 20 }
+        ];
 
-// 🟢 Manually add header row
-worksheet.addRow([
-    "Complete Name", "Address", "Birthday", "Birth Place", "Phone", "Email",
-    "Gender", "Civil Status", "Precinct", "Role", "Priority", "Priority Type",
-    "Pregnant", "Solo Parent", "PWD", "PWD Type", "Employment Status", "Work",
-    "Monthly Income", "Position"
-]);
+        // 🟢 Manually add header row
+        worksheet.addRow([
+            "Complete Name", "Address", "Birthday", "Birth Place", "Phone", "Email",
+            "Gender", "Civil Status", "Precinct", "Role", "Priority", "Priority Type",
+            "Pregnant", "Solo Parent", "PWD", "PWD Type", "Employment Status", "Work",
+            "Monthly Income", "Position"
+        ]);
 
-// Style header row
-const headerRow = worksheet.lastRow;
-headerRow.font = { bold: true };
-headerRow.alignment = { vertical: "center", horizontal: "center" };
-headerRow.eachCell(cell => {
-    cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FFD9D9D9" } // light gray background
-    };
-    cell.border = {
-        top: { style: "thin" },
-        left: { style: "thin" },
-        bottom: { style: "thin" },
-        right: { style: "thin" }
-    };
-});
+        // Style header row
+        const headerRow = worksheet.lastRow;
+        headerRow.font = { bold: true };
+        headerRow.alignment = { vertical: "center", horizontal: "center" };
+        headerRow.eachCell(cell => {
+            cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FFD9D9D9" } // light gray background
+            };
+            cell.border = {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" }
+            };
+        });
         const convertYesNo = (value) => {
             if (value === "on") return "Yes";
             if (value === "off") return "No";
@@ -4685,82 +4690,82 @@ headerRow.eachCell(cell => {
 
 
 app.get("/export-residents2", isLogin, (req, res) => {
-    res.render("downloading2", { title: "", layout: "layout", activePage: ""} );
+    res.render("downloading2", { title: "", layout: "layout", activePage: "" });
 });
 
 app.get("/download-residents2", isLogin, async (req, res) => {
     try {
         const residents = await db.collection("resident")
-    .find({ archive: { $in: [0, "0"] } })
-    .toArray();
+            .find({ archive: { $in: [0, "0"] } })
+            .toArray();
 
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet("Residents");
 
-// 🟢 Add a title row
-worksheet.mergeCells("A1:T1"); // adjust range according to last column
-worksheet.getCell("A1").value = "Barangay San Andres - Residents List";
-worksheet.getCell("A1").font = { size: 16, bold: true };
-worksheet.getCell("A1").alignment = { vertical: "middle", horizontal: "center" };
+        // 🟢 Add a title row
+        worksheet.mergeCells("A1:T1"); // adjust range according to last column
+        worksheet.getCell("A1").value = "Barangay San Andres - Residents List";
+        worksheet.getCell("A1").font = { size: 16, bold: true };
+        worksheet.getCell("A1").alignment = { vertical: "middle", horizontal: "center" };
 
-// 🟢 Add a subtitle row
-worksheet.mergeCells("A2:T2");
-worksheet.getCell("A2").value = `Generated on: ${new Date().toLocaleDateString()}`;
-worksheet.getCell("A2").font = { size: 12, italic: true };
-worksheet.getCell("A2").alignment = { vertical: "middle", horizontal: "center" };
+        // 🟢 Add a subtitle row
+        worksheet.mergeCells("A2:T2");
+        worksheet.getCell("A2").value = `Generated on: ${new Date().toLocaleDateString()}`;
+        worksheet.getCell("A2").font = { size: 12, italic: true };
+        worksheet.getCell("A2").alignment = { vertical: "middle", horizontal: "center" };
 
-// 🟢 Leave one empty row
-worksheet.addRow([]);
+        // 🟢 Leave one empty row
+        worksheet.addRow([]);
 
-// 🟢 Define columns without auto header row
-worksheet.columns = [
-    { key: "completeName", width: 25 },
-    { key: "address", width: 25 },
-    { key: "birthday", width: 20 },
-    { key: "birthPlace", width: 20 },
-    { key: "phone", width: 15 },
-    { key: "email", width: 25 },
-    { key: "gender", width: 10 },
-    { key: "civilStatus", width: 15 },
-    { key: "precinct", width: 15 },
-    { key: "role", width: 15 },
-    { key: "priority", width: 15 },
-    { key: "priorityType", width: 20 },
-    { key: "pregnant", width: 12 },
-    { key: "soloParent", width: 15 },
-    { key: "pwd", width: 10 },
-    { key: "pwdType", width: 15 },
-    { key: "employmentStatus", width: 20 },
-    { key: "work", width: 20 },
-    { key: "monthlyIncome", width: 15 },
-    { key: "position", width: 20 }
-];
+        // 🟢 Define columns without auto header row
+        worksheet.columns = [
+            { key: "completeName", width: 25 },
+            { key: "address", width: 25 },
+            { key: "birthday", width: 20 },
+            { key: "birthPlace", width: 20 },
+            { key: "phone", width: 15 },
+            { key: "email", width: 25 },
+            { key: "gender", width: 10 },
+            { key: "civilStatus", width: 15 },
+            { key: "precinct", width: 15 },
+            { key: "role", width: 15 },
+            { key: "priority", width: 15 },
+            { key: "priorityType", width: 20 },
+            { key: "pregnant", width: 12 },
+            { key: "soloParent", width: 15 },
+            { key: "pwd", width: 10 },
+            { key: "pwdType", width: 15 },
+            { key: "employmentStatus", width: 20 },
+            { key: "work", width: 20 },
+            { key: "monthlyIncome", width: 15 },
+            { key: "position", width: 20 }
+        ];
 
-// 🟢 Manually add header row
-worksheet.addRow([
-    "Complete Name", "Address", "Birthday", "Birth Place", "Phone", "Email",
-    "Gender", "Civil Status", "Precinct", "Role", "Priority", "Priority Type",
-    "Pregnant", "Solo Parent", "PWD", "PWD Type", "Employment Status", "Work",
-    "Monthly Income", "Position"
-]);
+        // 🟢 Manually add header row
+        worksheet.addRow([
+            "Complete Name", "Address", "Birthday", "Birth Place", "Phone", "Email",
+            "Gender", "Civil Status", "Precinct", "Role", "Priority", "Priority Type",
+            "Pregnant", "Solo Parent", "PWD", "PWD Type", "Employment Status", "Work",
+            "Monthly Income", "Position"
+        ]);
 
-// Style header row
-const headerRow = worksheet.lastRow;
-headerRow.font = { bold: true };
-headerRow.alignment = { vertical: "center", horizontal: "center" };
-headerRow.eachCell(cell => {
-    cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FFD9D9D9" } // light gray background
-    };
-    cell.border = {
-        top: { style: "thin" },
-        left: { style: "thin" },
-        bottom: { style: "thin" },
-        right: { style: "thin" }
-    };
-});
+        // Style header row
+        const headerRow = worksheet.lastRow;
+        headerRow.font = { bold: true };
+        headerRow.alignment = { vertical: "center", horizontal: "center" };
+        headerRow.eachCell(cell => {
+            cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FFD9D9D9" } // light gray background
+            };
+            cell.border = {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" }
+            };
+        });
         const monthNames = [
             "", "January", "February", "March", "April", "May", "June",
             "July", "August", "September", "October", "November", "December"
@@ -4824,15 +4829,15 @@ headerRow.eachCell(cell => {
 });
 
 app.get("/export-business", isLogin, (req, res) => {
-    res.render("exporting", { title: "", layout: "layout", activePage: ""} );
+    res.render("exporting", { title: "", layout: "layout", activePage: "" });
 });
 
 
 app.get("/download-business", async (req, res) => {
     try {
         const businesses = await db.collection("business")
-    .find({ archive: { $in: [0, "0"] } })
-    .toArray();
+            .find({ archive: { $in: [0, "0"] } })
+            .toArray();
 
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet("Businesses");
@@ -4955,9 +4960,9 @@ app.get("/blot", isLogin, isRsd, isHr, async (req, res) => {
     try {
         // Fetch all cases, ordered by createdAt (latest first)
         const cases = await db.collection("cases")
-        .find({ archive: { $in: ["0", 0] } }) // Filters only archive: 0
-        .sort({ createdAt: -1 })
-        .toArray();
+            .find({ archive: { $in: ["0", 0] } }) // Filters only archive: 0
+            .sort({ createdAt: -1 })
+            .toArray();
 
         // Extract resident IDs from cases (complainants and respondents)
         const residentIds = cases.flatMap(c => [...c.complainants, ...c.respondents])
@@ -5002,9 +5007,9 @@ app.get("/blot", isLogin, isRsd, isHr, async (req, res) => {
         });
 
         // Render the 'cmp' view with all data
-        res.render("blot", { 
-            layout: "layout", 
-            title: "Complaints", 
+        res.render("blot", {
+            layout: "layout",
+            title: "Complaints",
             activePage: "blot",
             cases,
             complainantsByCase,
@@ -5072,43 +5077,43 @@ app.get("/blotv/:id", isLogin, isRsd, isHr, async (req, res) => {
 });
 
 app.get("/editBlot/:id", isLogin, isRsd, isHr, async (req, res) => {
-  try {
-    const caseId = req.params.id;
-    if (!ObjectId.isValid(caseId)) return res.status(400).send("Invalid case ID");
+    try {
+        const caseId = req.params.id;
+        if (!ObjectId.isValid(caseId)) return res.status(400).send("Invalid case ID");
 
-    const caseItem = await db.collection("cases").findOne({ _id: new ObjectId(caseId) });
-    if (!caseItem) return res.status(404).send("Case not found");
+        const caseItem = await db.collection("cases").findOne({ _id: new ObjectId(caseId) });
+        if (!caseItem) return res.status(404).send("Case not found");
 
-    const residentIds = [...(caseItem.complainants || []), ...(caseItem.respondents || [])]
-      .filter(Boolean)
-      .map(id => ObjectId.isValid(id) ? new ObjectId(id) : id);
+        const residentIds = [...(caseItem.complainants || []), ...(caseItem.respondents || [])]
+            .filter(Boolean)
+            .map(id => ObjectId.isValid(id) ? new ObjectId(id) : id);
 
-    const residentsCursor = await db.collection("resident").find({ _id: { $in: residentIds } });
-    const residentsRaw = await residentsCursor.toArray();
+        const residentsCursor = await db.collection("resident").find({ _id: { $in: residentIds } });
+        const residentsRaw = await residentsCursor.toArray();
 
-    // Map to plain objects with string _id for client
-    const residents = residentsRaw.map(r => ({
-      _id: r._id.toString(),
-      firstName: r.firstName || "",
-      middleName: r.middleName || "",
-      lastName: r.lastName || "",
-      extName: r.extName || ""
-    }));
+        // Map to plain objects with string _id for client
+        const residents = residentsRaw.map(r => ({
+            _id: r._id.toString(),
+            firstName: r.firstName || "",
+            middleName: r.middleName || "",
+            lastName: r.lastName || "",
+            extName: r.extName || ""
+        }));
 
-    // Render the edit page and pass the caseItem and residents
-    res.render("editBlot", {
-    layout: "layout",
-    title: "Edit Blotter",
-    activePage: "blot",
-    caseItem,
-    residents,
-    complainants: caseItem.complainants || [],
-    respondents: caseItem.respondents || [],
-    });
-  } catch (error) {
-    console.error("Error fetching case details:", error);
-    res.status(500).send("An error occurred while retrieving case details.");
-  }
+        // Render the edit page and pass the caseItem and residents
+        res.render("editBlot", {
+            layout: "layout",
+            title: "Edit Blotter",
+            activePage: "blot",
+            caseItem,
+            residents,
+            complainants: caseItem.complainants || [],
+            respondents: caseItem.respondents || [],
+        });
+    } catch (error) {
+        console.error("Error fetching case details:", error);
+        res.status(500).send("An error occurred while retrieving case details.");
+    }
 });
 
 app.get("/cmn", isLogin, isRsd, isHr, (req, res) => res.render("cmn", { layout: "layout", title: "Add Complaint", activePage: "blot" }));
@@ -5141,7 +5146,7 @@ app.get('/viewCmp/:id', isRsd, isLogin, async (req, res) => {
         console.log("Schedules Found:", schedules);
 
         // ✅ Extract unique resident IDs from schedules
-        const residentIds = schedules.flatMap(schedule => 
+        const residentIds = schedules.flatMap(schedule =>
             [schedule.chair, schedule.secretary, schedule.member].filter(id => id)
         ).map(id => new ObjectId(id));
 
@@ -5149,7 +5154,7 @@ app.get('/viewCmp/:id', isRsd, isLogin, async (req, res) => {
         console.log("Fetching residents with IDs:", uniqueResidentIds);
 
         // ✅ Fetch residents (Chair, Secretary, Member) based on IDs
-        const residents = uniqueResidentIds.length > 0 
+        const residents = uniqueResidentIds.length > 0
             ? await db.collection('resident').find({ _id: { $in: uniqueResidentIds } }).toArray()
             : [];
 
@@ -5161,9 +5166,9 @@ app.get('/viewCmp/:id', isRsd, isLogin, async (req, res) => {
         });
 
         // ✅ Render the page with the error message
-        res.render('viewCmp', { 
+        res.render('viewCmp', {
             caseData, complainants, complainees, schedules, error,
-            layout: "layout", title: "Add Complaint", activePage: "blot" 
+            layout: "layout", title: "Add Complaint", activePage: "blot"
         });
 
     } catch (err) {
@@ -5190,8 +5195,8 @@ app.post("/myUpdate", requireAuth, async (req, res) => {
 
         // Handle checkboxes: "On" if checked, "No" if unchecked
         const soloParent = req.body.soloParent ? "on" : "no";
-        const pregnant   = req.body.pregnant ? "on" : "no";
-        const pwd        = req.body.pwd ? "on" : "no";
+        const pregnant = req.body.pregnant ? "on" : "no";
+        const pwd = req.body.pwd ? "on" : "no";
 
         // Build update object
         const updateData = {
@@ -5322,7 +5327,7 @@ app.get("/api/age-distribution", async (req, res) => {
         let totalResidents = 0;
 
         const residents = await db.collection("resident").find({ archive: { $in: [0, "0"] } }).toArray();
-        
+
         const currentDate = new Date();
         const currentYear = currentDate.getFullYear();
         const currentMonth = currentDate.getMonth() + 1; // Month is 0-indexed, so we add 1
@@ -5367,7 +5372,7 @@ app.get("/api/age-distribution", async (req, res) => {
                     } else if (monthsOld >= 6 && monthsOld <= 11) {
                         ageGroups["6-11 Months"]++;
                     }
-                } 
+                }
                 // Group for 1 year old and above
                 else if (age >= 1 && age <= 5) {
                     ageGroups["1-5 Years Old"]++;
@@ -5380,19 +5385,19 @@ app.get("/api/age-distribution", async (req, res) => {
                 } else {
                     ageGroups["60 and above"]++;
                 }
-                
+
                 totalResidents++;
             }
         });
 
         // Log the final counts for debugging
         console.log("Age Groups:", ageGroups);
-        
+
         // Calculate percentages for each age group
         const ageGroupPercentages = {};
         Object.keys(ageGroups).forEach(group => {
-            ageGroupPercentages[group] = totalResidents > 0 
-                ? ((ageGroups[group] / totalResidents) * 100).toFixed(2) + "%" 
+            ageGroupPercentages[group] = totalResidents > 0
+                ? ((ageGroups[group] / totalResidents) * 100).toFixed(2) + "%"
                 : "0%";
         });
 
@@ -5470,7 +5475,7 @@ const myRqtView = async (req, res) => {
         request.documents = documents;
 
         // Render the EJS page with the data
-        res.render("rqtView", { request, resident, documents, layout: "layout", title: "Request", activePage: "rqt"  });
+        res.render("rqtView", { request, resident, documents, layout: "layout", title: "Request", activePage: "rqt" });
 
     } catch (err) {
         console.error("⚠️ Error in myRqtView:", err);
@@ -5541,7 +5546,7 @@ app.post("/forgotX", async (req, res) => {
             return res.redirect("/forgot?error=" + encodeURIComponent("Failed to send email"));
         }
 
-        res.render("passSuccess", { username, email: emailToSend, error : "Password Reset Successfully!" });
+        res.render("passSuccess", { username, email: emailToSend, error: "Password Reset Successfully!" });
 
     } catch (error) {
         console.error("Error resetting password:", error);
@@ -5580,18 +5585,18 @@ app.get("/resv/:id", isLogin, async (req, res) => {
         let familyMembers = [];
         if (resident.familyId) {
             familyMembers = await db.collection("resident").find({ familyId: resident.familyId }).toArray();
-        
+
             // Calculate age for each family member
             familyMembers = familyMembers.map(member => {
                 let age = "Age Unknown";
                 if (member.bYear && member.bMonth && member.bDay) {
                     const birthDate = new Date(member.bYear, member.bMonth - 1, member.bDay);
                     const today = new Date();
-                    
+
                     let years = today.getFullYear() - birthDate.getFullYear();
                     let months = today.getMonth() - birthDate.getMonth();
                     let days = today.getDate() - birthDate.getDate();
-        
+
                     if (days < 0) {
                         months--; // Adjust if days are negative
                         days += new Date(today.getFullYear(), today.getMonth(), 0).getDate(); // Get last month's days
@@ -5600,7 +5605,7 @@ app.get("/resv/:id", isLogin, async (req, res) => {
                         years--; // Adjust if months are negative
                         months += 12;
                     }
-        
+
                     if (years < 1) {
                         if (months === 0) {
                             age = "Less than a month old";
@@ -5614,21 +5619,21 @@ app.get("/resv/:id", isLogin, async (req, res) => {
                 return { ...member, age };
             });
         }
-        
+
 
         // Calculate Age and Format Birthday
         let age = "--";
         let birthday = "--";
-        
+
         if (resident.bYear && resident.bMonth && resident.bDay) {
             const birthDate = new Date(resident.bYear, resident.bMonth - 1, resident.bDay);
             const today = new Date();
-        
+
             const diffInMilliseconds = today - birthDate;
             const diffInDays = Math.floor(diffInMilliseconds / (1000 * 60 * 60 * 24));
             const diffInMonths = Math.floor(diffInDays / 30.44); // Average days in a month
             const diffInYears = Math.floor(diffInMonths / 12);
-        
+
             if (diffInDays < 30) {
                 age = "Less than a Month";
             } else if (diffInMonths < 12) {
@@ -5636,7 +5641,7 @@ app.get("/resv/:id", isLogin, async (req, res) => {
             } else {
                 age = `${diffInYears} ${diffInYears === 1 ? "year old" : "years old"}`;
             }
-        
+
             const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
             birthday = `${monthNames[resident.bMonth - 1]} ${resident.bDay}, ${resident.bYear}`;
         }
@@ -5646,7 +5651,7 @@ app.get("/resv/:id", isLogin, async (req, res) => {
             const ageB = parseInt(b.age) || 0;
             return ageB - ageA; // Descending order
         });
-        
+
 
         // Fetch Resident's Requests & Documents
         const requests = await db.collection("request").find({ requestBy: residentId, archive: { $in: [0, "0"] } }).toArray();
@@ -5731,18 +5736,18 @@ app.get("/rsdView2/:id", isLogin, async (req, res) => {
         let familyMembers = [];
         if (resident.familyId) {
             familyMembers = await db.collection("resident").find({ familyId: resident.familyId }).toArray();
-        
+
             // Calculate age for each family member
             familyMembers = familyMembers.map(member => {
                 let age = "Age Unknown";
                 if (member.bYear && member.bMonth && member.bDay) {
                     const birthDate = new Date(member.bYear, member.bMonth - 1, member.bDay);
                     const today = new Date();
-                    
+
                     let years = today.getFullYear() - birthDate.getFullYear();
                     let months = today.getMonth() - birthDate.getMonth();
                     let days = today.getDate() - birthDate.getDate();
-        
+
                     if (days < 0) {
                         months--; // Adjust if days are negative
                         days += new Date(today.getFullYear(), today.getMonth(), 0).getDate(); // Get last month's days
@@ -5751,7 +5756,7 @@ app.get("/rsdView2/:id", isLogin, async (req, res) => {
                         years--; // Adjust if months are negative
                         months += 12;
                     }
-        
+
                     if (years < 1) {
                         if (months === 0) {
                             age = "Less than a month old";
@@ -5765,21 +5770,21 @@ app.get("/rsdView2/:id", isLogin, async (req, res) => {
                 return { ...member, age };
             });
         }
-        
+
 
         // Calculate Age and Format Birthday
         let age = "--";
         let birthday = "--";
-        
+
         if (resident.bYear && resident.bMonth && resident.bDay) {
             const birthDate = new Date(resident.bYear, resident.bMonth - 1, resident.bDay);
             const today = new Date();
-        
+
             const diffInMilliseconds = today - birthDate;
             const diffInDays = Math.floor(diffInMilliseconds / (1000 * 60 * 60 * 24));
             const diffInMonths = Math.floor(diffInDays / 30.44); // Average days in a month
             const diffInYears = Math.floor(diffInMonths / 12);
-        
+
             if (diffInDays < 30) {
                 age = "Less than a Month";
             } else if (diffInMonths < 12) {
@@ -5787,7 +5792,7 @@ app.get("/rsdView2/:id", isLogin, async (req, res) => {
             } else {
                 age = `${diffInYears} ${diffInYears === 1 ? "year old" : "years old"}`;
             }
-        
+
             const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
             birthday = `${monthNames[resident.bMonth - 1]} ${resident.bDay}, ${resident.bYear}`;
         }
@@ -5797,7 +5802,7 @@ app.get("/rsdView2/:id", isLogin, async (req, res) => {
             const ageB = parseInt(b.age) || 0;
             return ageB - ageA; // Descending order
         });
-        
+
 
         // Fetch Resident's Requests & Documents
         const requests = await db.collection("request").find({ requestBy: residentId, archive: { $in: [0, "0"] } }).toArray();
@@ -5832,7 +5837,7 @@ app.get("/rsdView2/:id", isLogin, async (req, res) => {
             householdData,  // ✅ Now passing the entire household data
             familyMembers,  // ✅ Passing all residents with the same familyId
             age,            // ✅ Added Age
-            birthday ,       // ✅ Added Birthday
+            birthday,       // ✅ Added Birthday
             back: "hsh"
         });
 
@@ -5889,7 +5894,7 @@ app.post("/cmn", async (req, res) => {
     }
 });
 
-app.post("/arcCase/:id", async (req, res) => { 
+app.post("/arcCase/:id", async (req, res) => {
     try {
         const caseId = req.params.id;
         if (!ObjectId.isValid(caseId)) return res.status(400).send("Invalid case ID");
@@ -5904,7 +5909,7 @@ app.post("/arcCase/:id", async (req, res) => {
 
         if (updateResult.modifiedCount === 0) return res.status(404).send("Case not found.");
 
-        res.redirect("/blot");  
+        res.redirect("/blot");
     } catch (error) {
         console.error("Error archiving case:", error);
         res.status(500).send("Internal Server Error");
@@ -5939,13 +5944,13 @@ app.get("/export-residents-pdf", async (req, res) => {
             "15-30 (SK Voters)": [],
             "59 & Above (Senior Citizen)": []
         };
-        
+
         const genderGroups = { Male: [], Female: [], Other: [] };
         const priorityGroups = {};
 
         residents.forEach(r => {
             const age = calculateAge(r.bMonth, r.bDay, r.bYear);
-            
+
             if (age < 1) {
                 const monthsOld = moment().diff(`${r.bYear}-${r.bMonth}-${r.bDay}`, "months");
                 if (monthsOld <= 5) ageGroups["0-5 Months"].push(r);
@@ -6028,8 +6033,8 @@ app.post("/rst/:id", async (req, res) => {
         // Update the password and delete the reset field
         await db.collection("resident").updateOne(
             { _id: new ObjectId(userId) },
-            { 
-                $set: { password: newPassword }, 
+            {
+                $set: { password: newPassword },
                 $unset: { reset: 1 } // Removes the 'reset' field completely
             }
         );
@@ -6054,7 +6059,7 @@ app.get('/check-resident', async (req, res) => {
 
         // Check in household collection where archive is 0 or "0"
         const householdExists = await db.collection("household").findOne({
-            archive: { $in: [0, "0"] }, 
+            archive: { $in: [0, "0"] },
             houseNo: houseNo,  // Exact match for house number
             purok: new RegExp(`^${purok}$`, "i") // Case-insensitive exact match for purok
         });
@@ -6090,9 +6095,9 @@ app.post("/add-family", async (req, res) => {
         const residents = db.collection("resident");
         const families = db.collection("family"); // Collection for family data
 
-        const { 
+        const {
             firstName, middleName, lastName, extName, birthPlace, // Added fields
-            bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email, 
+            bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email,
             soloParent, pwd, pwdType, employmentStatus, work, monthlyIncome, position, householdId, rel // Added rel field
         } = req.body;
 
@@ -6179,12 +6184,12 @@ app.get("/newMem", isLogin, async (req, res) => {
     const { familyId } = req.params;
     const { householdId } = req.query; // Extract householdId from query params
 
-    res.render("newMem", { 
-        familyId, 
-        householdId, 
-        layout: "Layout", 
-        title: 'New Member', 
-        activePage: "hsh" 
+    res.render("newMem", {
+        familyId,
+        householdId,
+        layout: "Layout",
+        title: 'New Member',
+        activePage: "hsh"
     });
 });
 
@@ -6194,12 +6199,12 @@ app.get("/newMem2", isLogin, async (req, res) => {
     const { familyId } = req.params;
     const { householdId } = req.query; // Extract householdId from query params
 
-    res.render("newMem2", { 
-        familyId, 
-        householdId, 
-        layout: "Layout", 
-        title: 'New Member', 
-        activePage: "hsh" 
+    res.render("newMem2", {
+        familyId,
+        householdId,
+        layout: "Layout",
+        title: 'New Member',
+        activePage: "hsh"
     });
 });
 
@@ -6207,9 +6212,9 @@ app.get("/newMem2", isLogin, async (req, res) => {
 app.get("/nonRes", isLogin, async (req, res) => {
 
     res.render("nonRes", {
-        layout: "Layout", 
-        title: 'New Member', 
-        activePage: "rsd" 
+        layout: "Layout",
+        title: 'New Member',
+        activePage: "rsd"
     });
 });
 
@@ -6217,18 +6222,18 @@ app.post("/add-member", async (req, res) => {
     try {
         const residents = db.collection("resident");
 
-        const { 
-            firstName, middleName, lastName, extName, birthPlace, 
-            bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email, 
-            soloParent, pwd, pwdType, employmentStatus, work, monthlyIncome, position, 
-            birthHeight, birthWeight, healthCenter, rel, nationality, religion, education, houseNo, purok, headId 
+        const {
+            firstName, middleName, lastName, extName, birthPlace,
+            bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email,
+            soloParent, pwd, pwdType, employmentStatus, work, monthlyIncome, position,
+            birthHeight, birthWeight, healthCenter, rel, nationality, religion, education, houseNo, purok, headId
         } = req.body;
 
         // Calculate age
         const birthDate = new Date(`${bYear}-${bMonth}-${bDay}`);
         const today = new Date();
         let age = today.getFullYear() - birthDate.getFullYear();
-        if (today.getMonth() < birthDate.getMonth() || 
+        if (today.getMonth() < birthDate.getMonth() ||
             (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate())) age--;
 
         // Generate username & password only if age is between 15-59
@@ -6308,18 +6313,18 @@ app.post("/add-member2", async (req, res) => {
     try {
         const residents = db.collection("resident");
 
-        const { 
-            firstName, middleName, lastName, extName, birthPlace, 
-            bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email, 
-            soloParent, pwd, pwdType, employmentStatus, work, monthlyIncome, position, 
-            birthHeight, birthWeight, healthCenter, rel, nationality, religion, education, houseNo, purok, headId 
+        const {
+            firstName, middleName, lastName, extName, birthPlace,
+            bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email,
+            soloParent, pwd, pwdType, employmentStatus, work, monthlyIncome, position,
+            birthHeight, birthWeight, healthCenter, rel, nationality, religion, education, houseNo, purok, headId
         } = req.body;
 
         // Calculate age
         const birthDate = new Date(`${bYear}-${bMonth}-${bDay}`);
         const today = new Date();
         let age = today.getFullYear() - birthDate.getFullYear();
-        if (today.getMonth() < birthDate.getMonth() || 
+        if (today.getMonth() < birthDate.getMonth() ||
             (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate())) age--;
 
         // Generate username & password only if age is between 15-59
@@ -6368,18 +6373,18 @@ app.post("/add-memberR", async (req, res) => {
     try {
         const residents = db.collection("resident");
 
-        const { 
-            firstName, middleName, lastName, extName, birthPlace, 
-            bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email, 
-            soloParent, pwd, pwdType, employmentStatus, work, monthlyIncome, position, 
-            birthHeight, birthWeight, healthCenter, rel, nationality, religion, education, houseNo, purok, headId 
+        const {
+            firstName, middleName, lastName, extName, birthPlace,
+            bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email,
+            soloParent, pwd, pwdType, employmentStatus, work, monthlyIncome, position,
+            birthHeight, birthWeight, healthCenter, rel, nationality, religion, education, houseNo, purok, headId
         } = req.body;
 
         // Calculate age
         const birthDate = new Date(`${bYear}-${bMonth}-${bDay}`);
         const today = new Date();
         let age = today.getFullYear() - birthDate.getFullYear();
-        if (today.getMonth() < birthDate.getMonth() || 
+        if (today.getMonth() < birthDate.getMonth() ||
             (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate())) age--;
 
         // Generate username & password only if age is between 15-59
@@ -6462,10 +6467,10 @@ app.post("/add-member2", async (req, res) => {
         const residents = db.collection("resident");
         const families = db.collection("family");
 
-        const { 
-            firstName, middleName, lastName, extName, birthPlace, 
-            bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email, 
-            soloParent, pwd, pwdType, employmentStatus, work, monthlyIncome, position, 
+        const {
+            firstName, middleName, lastName, extName, birthPlace,
+            bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email,
+            soloParent, pwd, pwdType, employmentStatus, work, monthlyIncome, position,
             householdId, familyId,
             birthHeight, birthWeight, healthCenter, // ✅ Added new fields
             rel // ✅ Added rel field
@@ -6559,14 +6564,14 @@ app.get("/search-resident", async (req, res) => {
 
 app.post("/cases", async (req, res) => {
     try {
-        const { 
-            caseNo, 
-            complainants: complainantsJSON, 
-            respondents: respondentsJSON, 
+        const {
+            caseNo,
+            complainants: complainantsJSON,
+            respondents: respondentsJSON,
             caseTypes: caseTypesJSON,
             remarks // ✅ add remarks from form
         } = req.body;
-        
+
         // Parse JSON data
         const complainants = JSON.parse(complainantsJSON);
         const respondents = JSON.parse(respondentsJSON);
@@ -6617,7 +6622,7 @@ app.post("/cases", async (req, res) => {
         };
 
         const result = await db.collection("cases").insertOne(caseData);
-        
+
         // Ensure status is also set to "Pending"
         await db.collection("cases").updateOne(
             { _id: result.insertedId },
@@ -6631,38 +6636,38 @@ app.post("/cases", async (req, res) => {
     }
 });
 function safeParseJSON(str) {
-  try {
-    return str ? JSON.parse(str) : [];
-  } catch {
-    return [];
-  }
+    try {
+        return str ? JSON.parse(str) : [];
+    } catch {
+        return [];
+    }
 }
 app.post("/cases/update/:id", async (req, res) => {
-  try {
-    const { caseNo, complainants, respondents, caseTypes, remarks } = req.body;
+    try {
+        const { caseNo, complainants, respondents, caseTypes, remarks } = req.body;
 
-    const caseId = new ObjectId(req.params.id);
+        const caseId = new ObjectId(req.params.id);
 
-    const updateData = {
-      caseNo,
-      remarks: remarks || "",
-      updatedAt: new Date()
-    };
+        const updateData = {
+            caseNo,
+            remarks: remarks || "",
+            updatedAt: new Date()
+        };
 
-    if (complainants) updateData.complainants = JSON.parse(complainants);
-    if (respondents) updateData.respondents = JSON.parse(respondents);
-    if (caseTypes) updateData.type = JSON.parse(caseTypes);
+        if (complainants) updateData.complainants = JSON.parse(complainants);
+        if (respondents) updateData.respondents = JSON.parse(respondents);
+        if (caseTypes) updateData.type = JSON.parse(caseTypes);
 
-    await db.collection("cases").updateOne(
-      { _id: caseId },
-      { $set: updateData }
-    );
+        await db.collection("cases").updateOne(
+            { _id: caseId },
+            { $set: updateData }
+        );
 
-    res.redirect("/blot");
-  } catch (err) {
-    console.error("Error updating case:", err);
-    res.status(500).send("Error updating case");
-  }
+        res.redirect("/blot");
+    } catch (err) {
+        console.error("Error updating case:", err);
+        res.status(500).send("Error updating case");
+    }
 });
 
 app.get('/check-case-number', async (req, res) => { // Renamed for clarity
@@ -6671,7 +6676,7 @@ app.get('/check-case-number', async (req, res) => { // Renamed for clarity
 
         if (!caseNo) {
             // If caseNo is empty, consider it as not existing for this check
-            return res.json({ exists: false }); 
+            return res.json({ exists: false });
         }
 
         // Check in the 'cases' collection
@@ -6821,13 +6826,13 @@ app.post("/generate-families-for-households", async (req, res) => {
         const residentsCollection = db.collection("resident");
         const familiesCollection = db.collection("family");
         const puroks = [
-        "Purok 1",
-        "Purok 2",
-        "Purok 3",
-        "Purok 4",
-        "Purok 5",
-        "Purok 6",
-        "Purok 7"
+            "Purok 1",
+            "Purok 2",
+            "Purok 3",
+            "Purok 4",
+            "Purok 5",
+            "Purok 6",
+            "Purok 7"
         ];
 
         // Fetch all existing households
@@ -6865,146 +6870,146 @@ app.post("/generate-families-for-households", async (req, res) => {
 
         // Predefined options for randomization
         const firstNamesMale = [
-        "Juan", "Jose", "Antonio", "Andres", "Pedro",
-        "Manuel", "Carlos", "Francisco", "Ramon", "Vicente",
-        "Alfonso", "Fernando", "Emilio", "Julio", "Ricardo",
-        "Eduardo", "Roberto", "Santiago", "Dominic", "Benigno",
-        "Enrique", "Crisanto", "Isidro", "Mariano", "Nicanor",
-        "Teodoro", "Ignacio", "Anselmo", "Severino", "Eusebio",
-        "Jesus", "Felipe", "Salvador", "Armando", "Rolando",
-        "Cesar", "Ernesto", "Alberto", "Mario", "Oscar",
-        "Daniel", "Patrick", "Mark", "Christian", "Joseph",
-        "Paul", "Allan", "Noel", "Jerome", "Arnold"
+            "Juan", "Jose", "Antonio", "Andres", "Pedro",
+            "Manuel", "Carlos", "Francisco", "Ramon", "Vicente",
+            "Alfonso", "Fernando", "Emilio", "Julio", "Ricardo",
+            "Eduardo", "Roberto", "Santiago", "Dominic", "Benigno",
+            "Enrique", "Crisanto", "Isidro", "Mariano", "Nicanor",
+            "Teodoro", "Ignacio", "Anselmo", "Severino", "Eusebio",
+            "Jesus", "Felipe", "Salvador", "Armando", "Rolando",
+            "Cesar", "Ernesto", "Alberto", "Mario", "Oscar",
+            "Daniel", "Patrick", "Mark", "Christian", "Joseph",
+            "Paul", "Allan", "Noel", "Jerome", "Arnold"
         ];
         const firstNamesFemale = [
-        "Maria", "Ana", "Carmen", "Teresa", "Cristina",
-        "Rosario", "Josefina", "Dolores", "Lourdes", "Mercedes",
-        "Remedios", "Victoria", "Beatriz", "Isabel", "Gloria",
-        "Consuelo", "Soledad", "Leonora", "Amelia", "Estrella",
-        "Catalina", "Aurora", "Graciela", "Luisa", "Marilou",
-        "Ligaya", "Mabini", "Rosalinda", "Imelda", "Erlinda",
-        "Virgie", "Fe", "Esperanza", "Charito", "Divina",
-        "Jocelyn", "Corazon", "Rowena", "Vilma", "Norma",
-        "Gemma", "Lorna", "Fely", "Chona", "Diana",
-        "Shirley", "Marites", "Evangeline", "Precious", "Lovely"
+            "Maria", "Ana", "Carmen", "Teresa", "Cristina",
+            "Rosario", "Josefina", "Dolores", "Lourdes", "Mercedes",
+            "Remedios", "Victoria", "Beatriz", "Isabel", "Gloria",
+            "Consuelo", "Soledad", "Leonora", "Amelia", "Estrella",
+            "Catalina", "Aurora", "Graciela", "Luisa", "Marilou",
+            "Ligaya", "Mabini", "Rosalinda", "Imelda", "Erlinda",
+            "Virgie", "Fe", "Esperanza", "Charito", "Divina",
+            "Jocelyn", "Corazon", "Rowena", "Vilma", "Norma",
+            "Gemma", "Lorna", "Fely", "Chona", "Diana",
+            "Shirley", "Marites", "Evangeline", "Precious", "Lovely"
         ];
         const lastNames = [
-        // A
-        "Abad", "Agbayani", "Agcaoili", "Alcantara", "Alonzo",
-        "Alvarado", "Amador", "Andrada", "Angeles", "Aquino",
-        "Aragon", "Arellano", "Arriola", "Asuncion", "Austria", "Avila",
+            // A
+            "Abad", "Agbayani", "Agcaoili", "Alcantara", "Alonzo",
+            "Alvarado", "Amador", "Andrada", "Angeles", "Aquino",
+            "Aragon", "Arellano", "Arriola", "Asuncion", "Austria", "Avila",
 
-        // B
-        "Bacani", "Balagtas", "Balderrama", "Baltazar", "Banzon",
-        "Basco", "Belmonte", "Benitez", "Bermudez", "Bernardo",
-        "Bonifacio", "Borja", "Buan", "Buenaventura",
+            // B
+            "Bacani", "Balagtas", "Balderrama", "Baltazar", "Banzon",
+            "Basco", "Belmonte", "Benitez", "Bermudez", "Bernardo",
+            "Bonifacio", "Borja", "Buan", "Buenaventura",
 
-        // C
-        "Cabrera", "Cabanban", "Calderon", "Camacho", "Canlas",
-        "Capistrano", "Carandang", "Carpio", "Casas", "Castillo",
-        "Castro", "Cayabyab", "Celis", "Cruz", "Cuenca",
+            // C
+            "Cabrera", "Cabanban", "Calderon", "Camacho", "Canlas",
+            "Capistrano", "Carandang", "Carpio", "Casas", "Castillo",
+            "Castro", "Cayabyab", "Celis", "Cruz", "Cuenca",
 
-        // D
-        "Dagdag", "Dalisay", "De Castro", "De Guzman", "De la Cruz",
-        "Del Mundo", "Dimaculangan", "Domingo", "Dumlao",
+            // D
+            "Dagdag", "Dalisay", "De Castro", "De Guzman", "De la Cruz",
+            "Del Mundo", "Dimaculangan", "Domingo", "Dumlao",
 
-        // E
-        "Enriquez", "Escobar", "Espino", "Espinosa", "Estrella", "Estrada",
+            // E
+            "Enriquez", "Escobar", "Espino", "Espinosa", "Estrella", "Estrada",
 
-        // F
-        "Fernandez", "Flores", "Fontanilla", "Francisco",
+            // F
+            "Fernandez", "Flores", "Fontanilla", "Francisco",
 
-        // G
-        "Gamboa", "Garcia", "Gatchalian", "Gonzales", "Guerrero", "Gutierrez",
+            // G
+            "Gamboa", "Garcia", "Gatchalian", "Gonzales", "Guerrero", "Gutierrez",
 
-        // H
-        "Hernandez", "Herrera", "Hilario", "Hosillos",
+            // H
+            "Hernandez", "Herrera", "Hilario", "Hosillos",
 
-        // I
-        "Ignacio", "Ilagan", "Infante", "Isidro",
+            // I
+            "Ignacio", "Ilagan", "Infante", "Isidro",
 
-        // J
-        "Jacinto", "Javier", "Jimenez", "Joaquin",
+            // J
+            "Jacinto", "Javier", "Jimenez", "Joaquin",
 
-        // L
-        "Labastida", "Lacson", "Lagman", "Lansangan", "Legaspi",
-        "Leonardo", "Lopez", "Lucero", "Lumibao",
+            // L
+            "Labastida", "Lacson", "Lagman", "Lansangan", "Legaspi",
+            "Leonardo", "Lopez", "Lucero", "Lumibao",
 
-        // M
-        "Macaraeg", "Madlangbayan", "Magalong", "Magbanua", "Magno",
-        "Mallari", "Manalili", "Manalo", "Manansala", "Mangahas",
-        "Marcelo", "Mariano", "Martinez", "Matias", "Medina",
-        "Mendoza", "Mercado", "Miranda", "Morales", "Munoz",
+            // M
+            "Macaraeg", "Madlangbayan", "Magalong", "Magbanua", "Magno",
+            "Mallari", "Manalili", "Manalo", "Manansala", "Mangahas",
+            "Marcelo", "Mariano", "Martinez", "Matias", "Medina",
+            "Mendoza", "Mercado", "Miranda", "Morales", "Munoz",
 
-        // N
-        "Natividad", "Navarro", "Nieves", "Nolasco", "Norona",
+            // N
+            "Natividad", "Navarro", "Nieves", "Nolasco", "Norona",
 
-        // O
-        "Obispo", "Ocampo", "Ochoa", "Olivarez", "Ong", "Ordoñez", "Ortega",
+            // O
+            "Obispo", "Ocampo", "Ochoa", "Olivarez", "Ong", "Ordoñez", "Ortega",
 
-        // P
-        "Padilla", "Pagsanghan", "Palacios", "Panganiban", "Panlilio",
-        "Pascual", "Paterno", "Perez", "Pineda", "Ponce", "Portillo",
+            // P
+            "Padilla", "Pagsanghan", "Palacios", "Panganiban", "Panlilio",
+            "Pascual", "Paterno", "Perez", "Pineda", "Ponce", "Portillo",
 
-        // Q
-        "Quejada", "Quijano", "Quimpo", "Quirino",
+            // Q
+            "Quejada", "Quijano", "Quimpo", "Quirino",
 
-        // R
-        "Ramos", "Ramirez", "Real", "Recto", "Reyes", "Rizal", "Rivera",
-        "Robles", "Roces", "Rodriguez", "Rojas", "Rolon", "Rosales", "Roxas",
+            // R
+            "Ramos", "Ramirez", "Real", "Recto", "Reyes", "Rizal", "Rivera",
+            "Robles", "Roces", "Rodriguez", "Rojas", "Rolon", "Rosales", "Roxas",
 
-        // S
-        "Salazar", "Salonga", "Samson", "Santos", "Sarmiento", "Sebastian",
-        "Soriano", "Suarez", "Sumulong",
+            // S
+            "Salazar", "Salonga", "Samson", "Santos", "Sarmiento", "Sebastian",
+            "Soriano", "Suarez", "Sumulong",
 
-        // T
-        "Tabora", "Tadena", "Talavera", "Tamayo", "Tan", "Tañada",
-        "Tejada", "Tiongson", "Tolentino", "Torres", "Trinidad", "Tuazon",
+            // T
+            "Tabora", "Tadena", "Talavera", "Tamayo", "Tan", "Tañada",
+            "Tejada", "Tiongson", "Tolentino", "Torres", "Trinidad", "Tuazon",
 
-        // U
-        "Ubaldo", "Urbano", "Urquico",
+            // U
+            "Ubaldo", "Urbano", "Urquico",
 
-        // V
-        "Valdez", "Valencia", "Valenzuela", "Velasco", "Velasquez",
-        "Vergara", "Villanueva", "Villareal", "Villegas",
+            // V
+            "Valdez", "Valencia", "Valenzuela", "Velasco", "Velasquez",
+            "Vergara", "Villanueva", "Villareal", "Villegas",
 
-        // Y
-        "Yambao", "Yap", "Yatco", "Yumul",
+            // Y
+            "Yambao", "Yap", "Yatco", "Yumul",
 
-        // Z
-        "Zabala", "Zamora", "Zaragoza", "Zarate", "Zavalla", "Zialcita"
+            // Z
+            "Zabala", "Zamora", "Zaragoza", "Zarate", "Zavalla", "Zialcita"
         ];
         const middleNames = ["Lee", "Ann", "Marie", "Cruz", "Santos", "Reyes"];
         const civilStatusOptions = ["Single", "Married", "Widowed", "Separated"];
         const pwdTypeOptions = ["Physical", "Visual", "Hearing", "Intellectual", "Mental", "Speech"];
         const workOptions = [
-        "Accountant", "Actor", "Actress", "Agriculturist", "Airline Crew",
-        "Architect", "Artist", "Baker", "Bank Teller", "Barangay Official",
-        "Barber", "Bartender", "Call Center Agent", "Carpenter", "Cashier",
-        "Chef", "Civil Engineer", "Clerk", "Construction Worker", "Counselor",
-        "Customer Service Representative", "Dentist", "Doctor", "Driver", "Electrician",
-        "Entrepreneur", "Factory Worker", "Farmer", "Fisherman", "Forester",
-        "Graphic Designer", "Government Employee", "Housekeeper", "IT Specialist", "Janitor",
-        "Jeepney Driver", "Journalist", "Judge", "Laborer", "Lawyer",
-        "Librarian", "Machinist", "Manager", "Mason", "Mechanic",
-        "Medical Technologist", "Midwife", "Military Personnel", "Nurse", "OFW",
-        "Painter", "Pharmacist", "Photographer", "Pilot", "Plumber",
-        "Police Officer", "Professor", "Sales Agent", "Security Guard", "Seafarer",
-        "Service Crew", "Singer", "Social Worker", "Soldier", "Storekeeper",
-        "Street Vendor", "Tailor", "Teacher", "Tour Guide", "Tricycle Driver",
-        "Vendor", "Veterinarian", "Waiter", "Welder"
+            "Accountant", "Actor", "Actress", "Agriculturist", "Airline Crew",
+            "Architect", "Artist", "Baker", "Bank Teller", "Barangay Official",
+            "Barber", "Bartender", "Call Center Agent", "Carpenter", "Cashier",
+            "Chef", "Civil Engineer", "Clerk", "Construction Worker", "Counselor",
+            "Customer Service Representative", "Dentist", "Doctor", "Driver", "Electrician",
+            "Entrepreneur", "Factory Worker", "Farmer", "Fisherman", "Forester",
+            "Graphic Designer", "Government Employee", "Housekeeper", "IT Specialist", "Janitor",
+            "Jeepney Driver", "Journalist", "Judge", "Laborer", "Lawyer",
+            "Librarian", "Machinist", "Manager", "Mason", "Mechanic",
+            "Medical Technologist", "Midwife", "Military Personnel", "Nurse", "OFW",
+            "Painter", "Pharmacist", "Photographer", "Pilot", "Plumber",
+            "Police Officer", "Professor", "Sales Agent", "Security Guard", "Seafarer",
+            "Service Crew", "Singer", "Social Worker", "Soldier", "Storekeeper",
+            "Street Vendor", "Tailor", "Teacher", "Tour Guide", "Tricycle Driver",
+            "Vendor", "Veterinarian", "Waiter", "Welder"
         ];
         const positionOptions = ["Resident"]; // Always Resident for generated families
         const monthlyIncomeOptions = [
-        1000, 2000, 3000, 4000, 5000,
-        6000, 7000, 8000, 9000, 10000,
-        12000, 15000, 18000, 20000, 25000,
-        30000, 35000, 40000, 45000, 50000,
-        60000, 70000, 80000, 90000, 100000,
-        120000, 150000, 200000, 250000, 300000,
-        400000, 500000
+            1000, 2000, 3000, 4000, 5000,
+            6000, 7000, 8000, 9000, 10000,
+            12000, 15000, 18000, 20000, 25000,
+            30000, 35000, 40000, 45000, 50000,
+            60000, 70000, 80000, 90000, 100000,
+            120000, 150000, 200000, 250000, 300000,
+            400000, 500000
         ];
-        const religionOptions = ["Roman Catholic","Iglesia ni Cristo", "Baptist"]
+        const religionOptions = ["Roman Catholic", "Iglesia ni Cristo", "Baptist"]
 
 
         for (const household of households) {
@@ -7030,10 +7035,10 @@ app.post("/generate-families-for-households", async (req, res) => {
             const lastName = getRandomItem(lastNames);
             const middleName = getRandomItem(middleNames);
             const extName = Math.random() < 0.1 ? getRandomItem(["Jr.", "Sr.", "III"]) : ""; // 10% chance for extName
-            
-    // --- NEW LOGIC: Assign random purok and houseNo ---
-    const purok = getRandomItem(puroks);
-    const houseNo = getRandomNumber(0, 200);
+
+            // --- NEW LOGIC: Assign random purok and houseNo ---
+            const purok = getRandomItem(puroks);
+            const houseNo = getRandomNumber(0, 200);
 
             // Generate other resident details
             const civilStatus = getRandomItem(civilStatusOptions);
@@ -7047,29 +7052,29 @@ app.post("/generate-families-for-households", async (req, res) => {
             const pwdType = pwd === "on" ? getRandomItem(pwdTypeOptions) : "";
 
             function getWeightedRandomItem(items) {
-            const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
-            const random = Math.random() * totalWeight;
+                const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+                const random = Math.random() * totalWeight;
 
-            let currentWeight = 0;
-            for (const item of items) {
-                currentWeight += item.weight;
-                if (random < currentWeight) {
-                    return item.value;
+                let currentWeight = 0;
+                for (const item of items) {
+                    currentWeight += item.weight;
+                    if (random < currentWeight) {
+                        return item.value;
+                    }
                 }
             }
-        }
 
-        // Define the employment statuses with their weights (probabilities)
-        const employmentStatusWeightedOptions = [
-            { value: "Employed", weight: 25 }, // 15% probability
-            { value: "Unemployed", weight: 40 }, // 60% probability
-            { value: "Self-Employed", weight: 35 }
-        ];
-        
+            // Define the employment statuses with their weights (probabilities)
+            const employmentStatusWeightedOptions = [
+                { value: "Employed", weight: 25 }, // 15% probability
+                { value: "Unemployed", weight: 40 }, // 60% probability
+                { value: "Self-Employed", weight: 35 }
+            ];
+
             const photoFilename = gender === "Female" ? getRandomItem(femalePhotos) : getRandomItem(malePhotos);
             const photo = `/uploads/${photoFilename}`;
 
-        // Use the new function to get the random status
+            // Use the new function to get the random status
             const employmentStatus = getWeightedRandomItem(employmentStatusWeightedOptions);
             const work = employmentStatus === "Employed" || employmentStatus === "Self-Employed" ? getRandomItem(workOptions) : "";
             const monthlyIncome = ["Unemployed", "Retired", "Student", "Dependent"].includes(employmentStatus) ? 0 : getRandomItem(monthlyIncomeOptions);
@@ -7127,8 +7132,8 @@ app.post("/generate-families-for-households", async (req, res) => {
                 access: 0, // Access 0 for "Resident"
                 rel,
                 dump: "1", // Set dump to "1" for resident
-        purok,
-        houseNo
+                purok,
+                houseNo
             };
 
             residentsToInsert.push(newResident);
@@ -7145,7 +7150,7 @@ app.post("/generate-families-for-households", async (req, res) => {
                 }
             }
         }
-        
+
         // Insert all generated residents in bulk
         await residentsCollection.insertMany(residentsToInsert);
 
@@ -7383,57 +7388,57 @@ app.post("/delete-archived-families2", async (req, res) => {
 });
 
 app.get('/cases/edit/:id', isLogin, async (req, res) => {
-  try {
-    const caseId = req.params.id;
+    try {
+        const caseId = req.params.id;
 
-    const caseData = await db.collection('cases').findOne({ _id: new ObjectId(caseId) });
+        const caseData = await db.collection('cases').findOne({ _id: new ObjectId(caseId) });
 
-    // Fetch all residents to populate dropdowns
-    const residents = await db.collection('resident').find().toArray();
+        // Fetch all residents to populate dropdowns
+        const residents = await db.collection('resident').find().toArray();
 
-    // Map complainants and respondents into objects with full name
-    const complainants = caseData.complainants.map(id => {
-      const r = residents.find(res => res._id.toString() === id.toString());
-      return { id, name: r ? `${r.firstName} ${r.lastName}` : "Unknown" };
-    });
+        // Map complainants and respondents into objects with full name
+        const complainants = caseData.complainants.map(id => {
+            const r = residents.find(res => res._id.toString() === id.toString());
+            return { id, name: r ? `${r.firstName} ${r.lastName}` : "Unknown" };
+        });
 
-    const respondents = caseData.respondents.map(id => {
-      const r = residents.find(res => res._id.toString() === id.toString());
-      return { id, name: r ? `${r.firstName} ${r.lastName}` : "Unknown" };
-    });
+        const respondents = caseData.respondents.map(id => {
+            const r = residents.find(res => res._id.toString() === id.toString());
+            return { id, name: r ? `${r.firstName} ${r.lastName}` : "Unknown" };
+        });
 
-    res.render('editCase', { caseData, residents, complainants, respondents, layout: "layout", title: "Add Complaint", activePage: "blot" });
-  } catch (err) {
-    console.error(err);
-    res.send("Error loading edit form");
-  }
+        res.render('editCase', { caseData, residents, complainants, respondents, layout: "layout", title: "Add Complaint", activePage: "blot" });
+    } catch (err) {
+        console.error(err);
+        res.send("Error loading edit form");
+    }
 });
 
 app.post('/cases/edit/:id', async (req, res) => {
-  try {
-    const caseId = req.params.id;
+    try {
+        const caseId = req.params.id;
 
-    let { caseNo, status, type, remarks } = req.body;
+        let { caseNo, status, type, remarks } = req.body;
 
-    await db.collection('cases').updateOne(
-      { _id: new ObjectId(caseId) },
-      {
-        $set: {
-          caseNo,
-          status,
-          type: type.split(',').map(t => t.trim()),
-          remarks,
-          updatedAt: new Date()
-        }
-      }
-    );
+        await db.collection('cases').updateOne(
+            { _id: new ObjectId(caseId) },
+            {
+                $set: {
+                    caseNo,
+                    status,
+                    type: type.split(',').map(t => t.trim()),
+                    remarks,
+                    updatedAt: new Date()
+                }
+            }
+        );
 
-    // redirect to /blotv/:id
-    res.redirect(`/blotv/${caseId}`);
-  } catch (err) {
-    console.error(err);
-    res.send("Error updating case");
-  }
+        // redirect to /blotv/:id
+        res.redirect(`/blotv/${caseId}`);
+    } catch (err) {
+        console.error(err);
+        res.send("Error updating case");
+    }
 });
 
 
