@@ -189,20 +189,15 @@
                                     <label>Purpose</label>
                                     <div class="selectBar">
                                         <select name="purpose[]" required>
-                                            <option value="ANY LEGAL">ANY LEGAL</option>
-                                            <option value="BURIAL ASSISTANCE">BURIAL ASSISTANCE</option>
-                                            <option value="EDUCATIONAL ASSISTANCE">EDUCATIONAL ASSISTANCE</option>
-                                            <option value="FINANCIAL ASSISTANCE">FINANCIAL ASSISTANCE</option>
-                                            <option value="MEDICAL ASSISTANCE">MEDICAL ASSISTANCE</option>
-                                            <option value="BANK TRANSACTION">BANK TRANSACTION</option>
-                                            <option value="LEGALIZATION">LEGALIZATION</option>
-                                            <option value="LOCAL EMPLOYMENT">LOCAL EMPLOYMENT</option>
-                                            <option value="PHILHEALTH">PHILHEALTH</option>
-                                            <option value="POLICE CLEARANCE">POLICE CLEARANCE</option>
-                                            <option value="SCHOOL REQUIREMENT">SCHOOL REQUIREMENT</option>
-                                            <option value="SENIOR CITIZEN">SENIOR CITIZEN</option>
-                                            <option value="SOLO PARENT PWD">SOLO PARENT PWD</option>
-                                            <option value="TRAVEL ABROAD">TRAVEL ABROAD</option>
+                                            <option value="Any Legal">Any Legal</option>
+                                            <option value="Burial">Burial</option>
+                                            <option value="Education">Education</option>
+                                            <option value="Financial Aid">Financial Aid</option>
+                                            <option value="Medical">Medical</option>
+                                            <option value="Bank">Bank</option>
+                                            <option value="Employment">Employment</option>
+                                            <option value="School Requirement">School Requirement</option>
+                                            <option value="Travel Abroad">Travel Abroad</option>
                                         </select>
                                     </div>
                                 </div>
@@ -240,16 +235,26 @@ document.addEventListener("DOMContentLoaded", function () {
     const datalist = document.getElementById("residentList"); // global shared list
     const userId = "<%= user._id %>";
 
-    const defaultPurposes = [
-        "ANY LEGAL","BURIAL ASSISTANCE","EDUCATIONAL ASSISTANCE","FINANCIAL ASSISTANCE",
-        "MEDICAL ASSISTANCE","BANK TRANSACTION","BOARD EXAM"
-        ,"LEGALIZATION","LOAN","LOCAL EMPLOYMENT","PHILHEALTH","POLICE CLEARANCE"
-        ,"SCHOOL REQUIREMENT","SENIOR CITIZEN","SOLO PARENT PWD","TRAVEL ABROAD"
-    ];
-    const indigencyPurposes = [
-        "ANY LEGAL","BURIAL ASSISTANCE","EDUCATIONAL ASSISTANCE","FINANCIAL ASSISTANCE",
-        "MEDICAL ASSISTANCE","PHILHEALTH","SCHOOL REQUIREMENT"
-    ];
+const defaultPurposes = [
+  "Any Legal",
+  "Burial",
+  "Education",
+  "Financial Aid",
+  "Medical",
+  "Bank",
+  "Employment",
+  "School Requirement",
+  "Travel Abroad"
+];
+
+const indigencyPurposes = [
+  "Any Legal",
+  "Burial",
+  "Education",
+  "Financial Aid",
+  "Medical",
+  "School Requirement"
+];
 
     function updatePurposeOptions(fieldset) {
         const docTypeSelect = fieldset.querySelector(".docType");

@@ -225,7 +225,7 @@ const transporter = nodemailer.createTransport({
         pass: 'kgaquwmapdezixat',
     },
     tls: {
-      rejectUnauthorized: false, // 👈 this line tells Node.js to ignore self-signed cert errors
+      rejectUnauthorized: false,
     },
   });
   
@@ -3080,7 +3080,7 @@ const upload2 = multer({
 });
 
 app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
-  const sessionUserId = req.user._id; // Logged-in user ID
+ const sessionUserId = req.session.userId;
 
   try {
     console.log("Request Body:", req.body);
@@ -3187,7 +3187,7 @@ app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
 });
 
 app.post("/reqDocumentA", isLogin, upload.array("proof[]"), async (req, res) => {
-  const sessionUserId = req.user._id; // Logged-in user ID
+  const sessionUserId = req.session.userId;
 
   try {
     console.log("Request Body:", req.body);
