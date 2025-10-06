@@ -13,6 +13,14 @@ const ExcelJS = require("exceljs");
 const PDFDocument = require("pdfkit");
 const nodemailer = require('nodemailer');
 
+const SibApiV3Sdk = require("@sendinblue/client");
+
+const client2 = new SibApiV3Sdk.TransactionalEmailsApi();
+client2.setApiKey(
+    SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
+    process.env.BREVO_API_KEY
+);
+
 const SECRET_KEY = "6LflzO4qAAAAAF4n0ABQ2YyHGPSA3RDjvtvFt1AQ";
 
 const { v2: cloudinary } = require("cloudinary");
@@ -797,12 +805,10 @@ app.get("/ann", isLogin, async (req, res) => {
         res.status(500).send("Internal Server Error");
     }
 });
-
 app.post("/newAnn", upload.single("image"), async (req, res) => {
     try {
         const { title, description } = req.body;
-        const postBy = req.session.userId; // ✅ use logged-in user's ID instead
-        // Cloudinary gives you the file URL directly
+        const postBy = req.session.userId;
         const imagePath = req.file ? req.file.path : null;
 
         if (!title || !description) {
@@ -819,38 +825,37 @@ app.post("/newAnn", upload.single("image"), async (req, res) => {
 
         await db.collection("announcements").insertOne(newAnnouncement);
 
-        // Fetch all resident emails
         const residents = await db.collection("resident")
             .find({ email: { $exists: true, $ne: null } })
             .toArray();
 
-        // Send emails using Nodemailer
-        const emailPromises = residents.map(resident => {
-            const mailOptions = {
-                from: 'wilyn.sabatinasuncion@gmail.com',
-                to: resident.email,
-                subject: `New Announcement: ${title}`,
-                html: `
-                    <p>Dear Resident,</p>
-                    <p>We have a new announcement:</p>
-                    <p><strong>Title:</strong> ${title}</p>
-                    <p><strong>Description:</strong> ${description}</p>
-                    ${imagePath ? `<p><img src="${imagePath}" alt="Announcement Image" style="max-width:100%;"></p>` : ""}
-                    <p>Thank you.</p>
-                `
-            };
-
-            return transporter.sendMail(mailOptions)
-                .then(() => console.log(`Email successfully sent to ${resident.email}`))
-                .catch((error) => console.error(`Failed to send email to ${resident.email}:`, error.message));
+        // Send emails via Brevo
+        const emailPromises = residents.map(async (resident) => {
+            try {
+                await brevo.sendTransacEmail({
+                    sender: { email: "jerseyjimenez10@gmail.com", name: "Barangay System" },
+                    to: [{ email: resident.email }],
+                    subject: `New Announcement: ${title}`,
+                    htmlContent: `
+            <p>Dear Resident,</p>
+            <p>We have a new announcement:</p>
+            <p><strong>Title:</strong> ${title}</p>
+            <p><strong>Description:</strong> ${description}</p>
+            ${imagePath ? `<p><img src="${imagePath}" alt="Announcement Image" style="max-width:100%;"></p>` : ""}
+            <p>Thank you.</p>
+          `,
+                });
+                console.log(`✅ Email sent to: ${resident.email}`);
+            } catch (error) {
+                console.error(`❌ Failed to send email to ${resident.email}:`, error.message);
+            }
         });
 
         await Promise.all(emailPromises);
 
         res.send('<script>alert("Announcement added successfully and sent to all residents!"); window.location="/ann";</script>');
-
     } catch (err) {
-        console.error("Error adding announcement:", err.stack);
+        console.error("❌ Error adding announcement:", err);
         res.status(500).send('<script>alert("Internal Server Error!"); window.location="/ann";</script>');
     }
 });
@@ -1034,26 +1039,28 @@ app.post("/add-resident", async (req, res) => {
             }
 
             if (recipientEmail) {
-                const mailOptions = {
-                    from: 'wilyn.sabatinasuncion@gmail.com',
-                    to: recipientEmail,
-                    subject: "Your Resident Account Details",
-                    text: `Dear ${firstName},\n\nYour resident account has been created.\nUsername: ${username}\nPassword: ${password}\n\nPlease keep your credentials secure.\n\nThank you.`,
-                    html: `<p>Dear <strong>${firstName}</strong>,</p>
-                           <p>Your resident account has been created.</p>
-                           <p><strong>Username:</strong> ${username}</p>
-                           <p><strong>Password:</strong> ${password}</p>
-                           <p>Please keep your credentials secure.</p>
-                           <p>Thank you.</p>`,
-                };
-
-                await transporter.sendMail(mailOptions);
-                console.log(`Email sent to ${recipientEmail}`);
+                try {
+                    await brevo.sendTransacEmail({
+                        sender: { email: "jerseyjimenez10@gmail.com", name: "Barangay System" },
+                        to: [{ email: recipientEmail }],
+                        subject: "Your Resident Account Details",
+                        htmlContent: `
+              <p>Dear <strong>${firstName}</strong>,</p>
+              <p>Your resident account has been created.</p>
+              <p><strong>Username:</strong> ${username}</p>
+              <p><strong>Password:</strong> ${password}</p>
+              <p>Please keep your credentials secure.</p>
+              <p>Thank you.</p>
+            `,
+                    });
+                    console.log(`✅ Email sent to ${recipientEmail}`);
+                } catch (error) {
+                    console.error(`❌ Failed to send email to ${recipientEmail}:`, error.message);
+                }
             }
         }
 
         res.send('<script>alert("Resident added successfully!"); window.location="/rsd";</script>');
-
     } catch (err) {
         console.error("Error adding resident:", err.message);
         res.status(500).send('<script>alert("Internal Server Error! Please try again."); window.location="/rsd";</script>');
@@ -1837,376 +1844,19 @@ app.get("/rsdH", isLogin, async (req, res) => {
     }
 });
 
+app.post("/reset-resident/:id", async (req, res) => { if (!db) { return res.status(500).json({ success: false, message: "Database not connected" }); } const residentId = req.params.id; function generateRandomPassword() { const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+"; let password = ""; for (let i = 0; i < 12; i++) { password += chars.charAt(Math.floor(Math.random() * chars.length)); } return password; } const newPassword = generateRandomPassword(); try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) { return res.status(404).json({ success: false, message: "Resident not found" }); } const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { password: newPassword } }); if (result.modifiedCount === 1) { res.json({ success: true, newPassword }); let emailToSend = resident.email; if (!emailToSend && resident.headId) { const familyHead = await db.collection("resident").findOne({ _id: new ObjectId(resident.headId) }); emailToSend = familyHead ? familyHead.email : null; } if (emailToSend) { const sendSmtpEmail = { sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" }, to: [{ email: emailToSend }], subject: "Password Reset", htmlContent: ` <p>Dear Resident,</p> <p>Your password has been successfully reset.</p> <p><strong>New Password:</strong> ${newPassword}</p> <p>Please keep it secure and do not share it with anyone.</p> <p>Thank you,<br>Barangay San Andres</p> `, }; brevoClient.sendTransacEmail(sendSmtpEmail).then(() => console.log(`Password reset email sent to ${emailToSend}`)).catch((emailError) => console.error("Error sending email via Brevo:", emailError)); } } else { res.status(404).json({ success: false, message: "Resident not found or password not updated" }); } } catch (error) { console.error("Error resetting password:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
 
-app.post("/reset-resident/:id", async (req, res) => {
-    if (!db) {
-        return res.status(500).json({ success: false, message: "Database not connected" });
-    }
+app.post("/suspend-resident/:id", async (req, res) => { if (!db) { return res.status(500).json({ success: false, message: "Database not connected" }); } const residentId = req.params.id.trim(); if (!ObjectId.isValid(residentId)) { return res.status(400).json({ success: false, message: "Invalid resident ID" }); } try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) { return res.status(404).json({ success: false, message: "Resident not found" }); } const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { suspend: 1 } }); if (result.modifiedCount === 1) { res.json({ success: true, message: "Resident suspended successfully." }); if (resident.email) { const sendSmtpEmail = { sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" }, to: [{ email: resident.email }], subject: "Account Suspension Notification", htmlContent: ` <p>Dear <strong>${resident.firstName}</strong>,</p> <p>We regret to inform you that your barangay system account has been <strong>suspended</strong>.</p> <p>If you believe this was an error, please contact the Barangay San Andres office for assistance.</p> <p>Thank you,<br>Barangay San Andres</p> `, }; brevoClient.sendTransacEmail(sendSmtpEmail).then(() => console.log(`Suspension email sent to ${resident.email}`)).catch((emailError) => console.error("Error sending suspension email via Brevo:", emailError)); } } else { res.status(404).json({ success: false, message: "Resident not found or update failed." }); } } catch (error) { console.error("Error suspending resident:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
 
-    const residentId = req.params.id;
+app.post("/decline-reg/:id", async (req, res) => { if (!db) return res.status(500).json({ success: false, message: "Database not connected" }); const residentId = req.params.id.trim(); if (!ObjectId.isValid(residentId)) return res.status(400).json({ success: false, message: "Invalid resident ID" }); try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) return res.status(404).json({ success: false, message: "Resident not found" }); const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { suspend: 1, archive: 1, verify: 3 } }); if (result.modifiedCount === 1) { res.json({ success: true, message: "Resident suspended successfully." }); if (resident.email) { await brevo.sendTransacEmail({ sender: { email: "barangay.valdefuente@gmail.com", name: "Barangay Valdefuente" }, to: [{ email: resident.email }], subject: "Registration Declined", htmlContent: ` <p>Dear <strong>${resident.firstName}</strong>,</p> <p>We regret to inform you that your registration has been <strong>declined</strong>.</p> <p>If you believe this was an error, please contact your barangay office.</p> <p>Thank you.</p> ` }); } } else res.status(404).json({ success: false, message: "Resident not found." }); } catch (error) { console.error("Error:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
 
-    function generateRandomPassword() {
-        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
-        let password = "";
-        for (let i = 0; i < 12; i++) {
-            password += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return password;
-    }
+app.post("/approve-reg/:id", async (req, res) => { if (!db) return res.status(500).json({ success: false, message: "Database not connected" }); const residentId = req.params.id.trim(); if (!ObjectId.isValid(residentId)) return res.status(400).json({ success: false, message: "Invalid resident ID" }); try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) return res.status(404).json({ success: false, message: "Resident not found" }); const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { suspend: 0, archive: 0, verify: 0 } }); if (result.modifiedCount === 1) { res.json({ success: true, message: "Registration approved successfully." }); if (resident.email) { await brevo.sendTransacEmail({ sender: { email: "barangay.valdefuente@gmail.com", name: "Barangay Valdefuente" }, to: [{ email: resident.email }], subject: "Registration Approved", htmlContent: ` <p>Dear <strong>${resident.firstName}</strong>,</p> <p>Your registration has been <strong>approved</strong>.</p> <p><strong>Username:</strong> ${resident.username}</p> <p><strong>Password:</strong> ${resident.password}</p> <p>You may now access barangay services using your account.</p> <p>Thank you.</p> ` }); } } else res.status(404).json({ success: false, message: "Resident not found." }); } catch (error) { console.error("Error:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
 
-    const newPassword = generateRandomPassword();
+app.post("/suspend2-resident/:id", async (req, res) => { if (!db) return res.status(500).json({ success: false, message: "Database not connected" }); const residentId = req.params.id.trim(); if (!ObjectId.isValid(residentId)) return res.status(400).json({ success: false, message: "Invalid resident ID" }); try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) return res.status(404).json({ success: false, message: "Resident not found" }); const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { suspend: 0 } }); if (result.modifiedCount === 1) { res.json({ success: true, message: "Resident unsuspended successfully." }); if (resident.email) { await brevo.sendTransacEmail({ sender: { email: "barangay.valdefuente@gmail.com", name: "Barangay Valdefuente" }, to: [{ email: resident.email }], subject: "Account Unsuspension Notification", htmlContent: ` <p>Dear <strong>${resident.firstName}</strong>,</p> <p>We are happy to inform you that your account has been <strong>unsuspended</strong>.</p> ` }); } } else res.status(404).json({ success: false, message: "Resident not found." }); } catch (error) { console.error("Error:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
 
-    try {
-        const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
-        if (!resident) {
-            return res.status(404).json({ success: false, message: "Resident not found" });
-        }
+app.post("/archive-resident/:id", async (req, res) => { if (!db) return res.status(500).json({ success: false, message: "Database not connected" }); const residentId = req.params.id.trim(); if (!ObjectId.isValid(residentId)) return res.status(400).json({ success: false, message: "Invalid resident ID" }); try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) return res.status(404).json({ success: false, message: "Resident not found" }); const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { archive: 1, suspend: 1 } }); if (result.modifiedCount === 1) { res.json({ success: true, message: "Resident archived and suspended successfully." }); if (resident.email) { await brevo.sendTransacEmail({ sender: { email: "barangay.valdefuente@gmail.com", name: "Barangay Valdefuente" }, to: [{ email: resident.email }], subject: "Account Archived & Suspended", htmlContent: ` <p>Dear <strong>${resident.firstName}</strong>,</p> <p>Your account has been <strong>archived and suspended</strong>.</p> <p>If you believe this was an error, please contact your barangay office.</p> <p>Thank you.</p> ` }); } } else res.status(404).json({ success: false, message: "Resident not found." }); } catch (error) { console.error("Error:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
 
-        const result = await db.collection("resident").updateOne(
-            { _id: new ObjectId(residentId) },
-            { $set: { password: newPassword } }
-        );
-
-        if (result.modifiedCount === 1) {
-            // ✅ Respond success immediately
-            res.json({ success: true, newPassword });
-
-            // 📧 Handle email sending in the background
-            let emailToSend = resident.email;
-            if (!emailToSend && resident.headId) {
-                const familyHead = await db.collection("resident").findOne({ _id: new ObjectId(resident.headId) });
-                emailToSend = familyHead ? familyHead.email : null;
-            }
-
-            if (emailToSend) {
-                const mailOptions = {
-                    from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
-                    to: emailToSend,
-                    subject: 'Password Reset',
-                    text: `Your new password is: ${newPassword}`,
-                    html: `<strong>Your new password is: ${newPassword}</strong>`,
-                };
-
-                transporter.sendMail(mailOptions).catch((emailError) => {
-                    console.error("Error sending email:", emailError);
-                });
-            } else {
-                console.warn("No email found for resident or family head, skipping email send.");
-            }
-        } else {
-            res.status(404).json({ success: false, message: "Resident not found or password not updated" });
-        }
-    } catch (error) {
-        console.error("Error resetting password:", error);
-        res.status(500).json({ success: false, message: "Internal Server Error" });
-    }
-});
-
-app.post("/suspend-resident/:id", async (req, res) => {
-    if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
-
-    const residentId = req.params.id.trim();
-
-    if (!ObjectId.isValid(residentId)) {
-        return res.status(400).json({ success: false, message: "Invalid resident ID" });
-    }
-
-    try {
-        const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
-
-        if (!resident) {
-            return res.status(404).json({ success: false, message: "Resident not found" });
-        }
-
-        const result = await db.collection("resident").updateOne(
-            { _id: new ObjectId(residentId) },
-            { $set: { suspend: 1 } }
-        );
-
-        if (result.modifiedCount === 1) {
-            // ✅ Respond success immediately
-            res.json({ success: true, message: "Resident suspended successfully." });
-
-            // 📧 Send email in the background
-            if (resident.email) {
-                const mailOptions = {
-                    from: "wilyn.sabatinasuncion@gmail.com",
-                    to: resident.email,
-                    subject: "Account Suspension Notification",
-                    text: `Dear ${resident.firstName},\n\nWe regret to inform you that your account has been suspended.\n\nThank you.`,
-                    html: `<p>Dear <strong>${resident.firstName}</strong>,</p>
-                           <p>We regret to inform you that your account has been <strong>suspended</strong>.</p>
-                           <p>If you believe this was an error, please contact your barangay office.</p>
-                           <p>Thank you.</p>`,
-                };
-
-                transporter.sendMail(mailOptions)
-                    .then(() => console.log("Suspension email sent to:", resident.email))
-                    .catch((emailError) => console.error("Failed to send suspension email:", emailError.message));
-            }
-        } else {
-            res.status(404).json({ success: false, message: "Resident not found." });
-        }
-    } catch (error) {
-        console.error("Error suspending resident:", error);
-        res.status(500).json({ success: false, message: "Internal Server Error" });
-    }
-});
-
-
-app.post("/decline-reg/:id", async (req, res) => {
-    if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
-
-    const residentId = req.params.id.trim();
-
-    if (!ObjectId.isValid(residentId)) {
-        return res.status(400).json({ success: false, message: "Invalid resident ID" });
-    }
-
-    try {
-        const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
-
-        if (!resident) {
-            return res.status(404).json({ success: false, message: "Resident not found" });
-        }
-
-        const result = await db.collection("resident").updateOne(
-            { _id: new ObjectId(residentId) },
-            { $set: { suspend: 1, archive: 1, verify: 3 } }
-        );
-
-        if (result.modifiedCount === 1) {
-            // ✅ Respond success immediately
-            res.json({ success: true, message: "Resident suspended successfully." });
-
-            // 📧 Send email in the background
-            if (resident.email) {
-                const mailOptions = {
-                    from: "wilyn.sabatinasuncion@gmail.com",
-                    to: resident.email,
-                    subject: "Registration Declined",
-                    text: `Dear ${resident.firstName},\n\nWe regret to inform you that your registration has been decline.\n\nThank you.`,
-                    html: `<p>Dear <strong>${resident.firstName}</strong>,</p>
-                           <p>We regret to inform you that your registration has been <strong>decline</strong>.</p>
-                           <p>If you believe this was an error, please contact your barangay office.</p>
-                           <p>Thank you.</p>`,
-                };
-
-                transporter.sendMail(mailOptions)
-                    .then(() => console.log("Suspension email sent to:", resident.email))
-                    .catch((emailError) => console.error("Failed to send suspension email:", emailError.message));
-            }
-        } else {
-            res.status(404).json({ success: false, message: "Resident not found." });
-        }
-    } catch (error) {
-        console.error("Error suspending resident:", error);
-        res.status(500).json({ success: false, message: "Internal Server Error" });
-    }
-});
-app.post("/approve-reg/:id", async (req, res) => {
-    if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
-
-    const residentId = req.params.id.trim();
-
-    if (!ObjectId.isValid(residentId)) {
-        return res.status(400).json({ success: false, message: "Invalid resident ID" });
-    }
-
-    try {
-        const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
-
-        if (!resident) {
-            return res.status(404).json({ success: false, message: "Resident not found" });
-        }
-
-        const result = await db.collection("resident").updateOne(
-            { _id: new ObjectId(residentId) },
-            { $set: { suspend: 0, archive: 0, verify: 0 } }
-        );
-
-        if (result.modifiedCount === 1) {
-            // ✅ Respond success immediately
-            res.json({ success: true, message: "Registration approved successfully." });
-
-            // 📧 Send approval email in the background
-            if (resident.email) {
-                const mailOptions = {
-                    from: "wilyn.sabatinasuncion@gmail.com",
-                    to: resident.email,
-                    subject: "Registration Approved",
-                    text: `Dear ${resident.firstName},\n\nYour registration has been approved.\n\nHere are your login details:\nUsername: ${resident.username}\nPassword: ${resident.password}\n\nYou may now access barangay services using your account.\n\nThank you.`,
-                    html: `<p>Dear <strong>${resident.firstName}</strong>,</p>
-                           <p>Your registration has been <strong>approved</strong>.</p>
-                           <p>Here are your login details:</p>
-                           <p><strong>Username:</strong> ${resident.username}</p>
-                           <p><strong>Password:</strong> ${resident.password}</p>
-                           <p>You may now access barangay services using your account.</p>
-                           <p>Thank you.</p>`
-                };
-
-                transporter.sendMail(mailOptions)
-                    .then(() => console.log("Approval email sent to:", resident.email))
-                    .catch((emailError) => console.error("Failed to send approval email:", emailError.message));
-            }
-        } else {
-            res.status(404).json({ success: false, message: "Resident not found." });
-        }
-    } catch (error) {
-        console.error("Error approving resident:", error);
-        res.status(500).json({ success: false, message: "Internal Server Error" });
-    }
-});
-
-
-app.post("/suspend2-resident/:id", async (req, res) => {
-    if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
-
-    const residentId = req.params.id.trim();
-
-    if (!ObjectId.isValid(residentId)) {
-        return res.status(400).json({ success: false, message: "Invalid resident ID" });
-    }
-
-    try {
-        const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
-
-        if (!resident) {
-            return res.status(404).json({ success: false, message: "Resident not found" });
-        }
-
-        const result = await db.collection("resident").updateOne(
-            { _id: new ObjectId(residentId) },
-            { $set: { suspend: 0 } }
-        );
-
-        if (result.modifiedCount === 1) {
-            // ✅ Respond success immediately
-            res.json({ success: true, message: "Resident suspended successfully." });
-
-            // 📧 Send email in the background
-            if (resident.email) {
-                const mailOptions = {
-                    from: "wilyn.sabatinasuncion@gmail.com",
-                    to: resident.email,
-                    subject: "Account Unsuspension Notification",
-                    text: `Dear ${resident.firstName},\n\nWe are happy to inform you that your account has been unsuspended.\n\nThank you.`,
-                    html: `<p>Dear <strong>${resident.firstName}</strong>,</p>
-                           <p>We are happy to inform you that your account has been <strong>unsuspended</strong>.</p>`,
-                };
-
-                transporter.sendMail(mailOptions)
-                    .then(() => console.log("Suspension email sent to:", resident.email))
-                    .catch((emailError) => console.error("Failed to send suspension email:", emailError.message));
-            }
-        } else {
-            res.status(404).json({ success: false, message: "Resident not found." });
-        }
-    } catch (error) {
-        console.error("Error suspending resident:", error);
-        res.status(500).json({ success: false, message: "Internal Server Error" });
-    }
-});
-app.post("/archive-resident/:id", async (req, res) => {
-    if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
-
-    const residentId = req.params.id.trim();
-
-    if (!ObjectId.isValid(residentId)) {
-        return res.status(400).json({ success: false, message: "Invalid resident ID" });
-    }
-
-    try {
-        const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
-
-        if (!resident) {
-            return res.status(404).json({ success: false, message: "Resident not found" });
-        }
-
-        const result = await db.collection("resident").updateOne(
-            { _id: new ObjectId(residentId) },
-            { $set: { archive: 1, suspend: 1 } }   // ✅ archive + suspend
-        );
-
-        if (result.modifiedCount === 1) {
-            // ✅ Respond success immediately
-            res.json({ success: true, message: "Resident archived & suspended successfully." });
-
-            // 📧 Send email in the background
-            if (resident.email) {
-                const mailOptions = {
-                    from: "wilyn.sabatinasuncion@gmail.com",
-                    to: resident.email,
-                    subject: "Account Archived & Suspended",
-                    text: `Dear ${resident.firstName},\n\nWe regret to inform you that your account has been archived and suspended.\n\nThank you.`,
-                    html: `<p>Dear <strong>${resident.firstName}</strong>,</p>
-                           <p>We regret to inform you that your account has been <strong>archived and suspended</strong>.</p>
-                           <p>If you believe this was an error, please contact your barangay office.</p>
-                           <p>Thank you.</p>`,
-                };
-
-                transporter.sendMail(mailOptions)
-                    .then(() => console.log("Archive + Suspension email sent to:", resident.email))
-                    .catch((emailError) => console.error("Failed to send email:", emailError.message));
-            }
-        } else {
-            res.status(404).json({ success: false, message: "Resident not found." });
-        }
-    } catch (error) {
-        console.error("Error archiving resident:", error);
-        res.status(500).json({ success: false, message: "Internal Server Error" });
-    }
-});
-app.post("/archive2-resident/:id", async (req, res) => {
-    if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
-
-    const residentId = req.params.id.trim();
-
-    if (!ObjectId.isValid(residentId)) {
-        return res.status(400).json({ success: false, message: "Invalid resident ID" });
-    }
-
-    try {
-        const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
-
-        if (!resident) {
-            return res.status(404).json({ success: false, message: "Resident not found" });
-        }
-
-        const result = await db.collection("resident").updateOne(
-            { _id: new ObjectId(residentId) },
-            { $set: { archive: 0, suspend: 0 } }   // ✅ archive + suspend
-        );
-
-        if (result.modifiedCount === 1) {
-            // ✅ Respond success immediately
-            res.json({ success: true, message: "Resident archived & suspended successfully." });
-
-            // 📧 Send email in the background
-            if (resident.email) {
-                const mailOptions = {
-                    from: "wilyn.sabatinasuncion@gmail.com",
-                    to: resident.email,
-                    subject: "Account Archived & Suspended",
-                    text: `Dear ${resident.firstName},\n\nWe regret to inform you that your account has been archived and suspended.\n\nThank you.`,
-                    html: `<p>Dear <strong>${resident.firstName}</strong>,</p>
-                           <p>We regret to inform you that your account has been <strong>archived and suspended</strong>.</p>
-                           <p>If you believe this was an error, please contact your barangay office.</p>
-                           <p>Thank you.</p>`,
-                };
-
-                transporter.sendMail(mailOptions)
-                    .then(() => console.log("Archive + Suspension email sent to:", resident.email))
-                    .catch((emailError) => console.error("Failed to send email:", emailError.message));
-            }
-        } else {
-            res.status(404).json({ success: false, message: "Resident not found." });
-        }
-    } catch (error) {
-        console.error("Error archiving resident:", error);
-        res.status(500).json({ success: false, message: "Internal Server Error" });
-    }
-});
+app.post("/archive2-resident/:id", async (req, res) => { if (!db) return res.status(500).json({ success: false, message: "Database not connected" }); const residentId = req.params.id.trim(); if (!ObjectId.isValid(residentId)) return res.status(400).json({ success: false, message: "Invalid resident ID" }); try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) return res.status(404).json({ success: false, message: "Resident not found" }); const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { archive: 0, suspend: 0 } }); if (result.modifiedCount === 1) { res.json({ success: true, message: "Resident unarchived successfully." }); if (resident.email) { await brevo.sendTransacEmail({ sender: { email: "barangay.valdefuente@gmail.com", name: "Barangay Valdefuente" }, to: [{ email: resident.email }], subject: "Account Restored", htmlContent: ` <p>Dear <strong>${resident.firstName}</strong>,</p> <p>Your account has been <strong>restored</strong>. You may now continue using barangay services.</p> <p>Thank you.</p> ` }); } } else res.status(404).json({ success: false, message: "Resident not found." }); } catch (error) { console.error("Error:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
 
 app.get("/updateRsd/:id", isLogin, async (req, res) => {
     try {
@@ -3163,26 +2813,24 @@ app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
 
         // Send response immediately before sending email
         res.redirect("/reqSuccess");
-
-        // Send email notification asynchronously after response
         if (resident?.email) {
-            const mailOptions = {
-                from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
-                to: resident.email,
+            const sendSmtpEmail = {
+                sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+                to: [{ email: resident.email }],
                 subject: "Document Request Submitted Successfully",
-                html: `
-          <p style="font-size: 18px; text-align: center;">Your request has been submitted successfully!</p>
-          <div style="font-size: 14px; text-align: center; font-weight: 500;">
-            The Barangay Secretary will review your request within 24 hours on business days and will notify you via email regarding its status. Weekends are excluded.
-          </div>
+                htmlContent: `
+            <p style="font-size: 18px; text-align: center;">Your request has been submitted successfully!</p>
+            <div style="font-size: 14px; text-align: center; font-weight: 500;">
+                The Barangay Secretary will review your request within 24 hours on business days and will notify you via email regarding its status. Weekends are excluded.
+            </div>
         `,
             };
 
             try {
-                await transporter.sendMail(mailOptions);
-                console.log("Email sent to:", resident.email);
+                await brevoClient.sendTransacEmail(sendSmtpEmail);
+                console.log("✅ Email sent to:", resident.email);
             } catch (emailError) {
-                console.error("Error sending email:", emailError);
+                console.error("❌ Error sending email via Brevo:", emailError.message);
             }
         }
 
@@ -3274,25 +2922,26 @@ app.post("/reqDocumentA", isLogin, upload.array("proof[]"), async (req, res) => 
 
         // Send email notification asynchronously after redirect
         if (resident?.email) {
-            const mailOptions = {
-                from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
-                to: resident.email,
+            const sendSmtpEmail = {
+                sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+                to: [{ email: resident.email }],
                 subject: "Document Request Submitted Successfully",
-                html: `
-          <p style="font-size: 18px; text-align: center;">Your request has been submitted successfully!</p>
-          <div style="font-size: 14px; text-align: center; font-weight: 500;">
-            The Barangay Secretary will review your request within 24 hours on business days and will notify you via email regarding its status. Weekends are excluded.
-          </div>
+                htmlContent: `
+            <p style="font-size: 18px; text-align: center;">Your request has been submitted successfully!</p>
+            <div style="font-size: 14px; text-align: center; font-weight: 500;">
+                The Barangay Secretary will review your request within 24 hours on business days and will notify you via email regarding its status. Weekends are excluded.
+            </div>
         `,
             };
 
             try {
-                await transporter.sendMail(mailOptions);
-                console.log("Email sent to:", resident.email);
+                await brevoClient.sendTransacEmail(sendSmtpEmail);
+                console.log("✅ Email sent to:", resident.email);
             } catch (emailError) {
-                console.error("Error sending email:", emailError);
+                console.error("❌ Error sending email via Brevo:", emailError.message);
             }
         }
+
 
     } catch (err) {
         console.error("Error inserting request:", err);
@@ -3958,25 +3607,31 @@ app.post("/yesDoc/:id", async (req, res) => {
         if (!emailRecipient) return res.json({ success: true, message: "Request approved, no email sent." });
 
         let emailHTML = `
-            <p>Your request has been <strong>Approved</strong>.</p>
-            <p>Request Reference: ${request._id}</p>
-            <p>Thank you for using our system.</p>
-        `;
+    <p>Your request has been <strong>Approved</strong>.</p>
+    <p>Request Reference: ${request._id}</p>
+    <p>Thank you for using our system.</p>
+`;
 
         if (resident?.email !== emailRecipient) {
             emailHTML = `<p>The request for ${resident?.firstName || "your household member"} has been approved.</p>` + emailHTML;
         }
 
-        await transporter.sendMail({
-            from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
-            to: emailRecipient,
+        const sendSmtpEmail = {
+            sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+            to: [{ email: emailRecipient }],
             subject: "Request Status Update - Approved",
-            html: emailHTML
-        });
+            htmlContent: emailHTML,
+        };
 
-        console.log("✅ Approval email sent:", emailRecipient);
+        try {
+            await brevoClient.sendTransacEmail(sendSmtpEmail);
+            console.log("✅ Approval email sent:", emailRecipient);
+        } catch (error) {
+            console.error("❌ Error sending email via Brevo:", error.message);
+        }
 
         res.json({ success: true, message: "Request approved!", requestStatus: "Approved" });
+
 
     } catch (error) {
         console.error("Error in yesDoc:", error);
@@ -4005,28 +3660,35 @@ app.post("/verDoc/:id", async (req, res) => {
         const familyHead = resident?.familyHeadId
             ? await db.collection("resident").findOne({ _id: new ObjectId(resident.familyHeadId) })
             : null;
-
         let emailRecipient = resident?.email || familyHead?.email || null;
         if (!emailRecipient) return res.json({ success: true, message: "Request verified, no email sent." });
 
         let emailHTML = `
-            <p>Your request has been <strong>Verified</strong>.</p>
-            <p>Request Reference: ${request._id}</p>
-            <p>Thank you for using our system.</p>
-        `;
+    <p>Your request has been <strong>Verified</strong>.</p>
+    <p>Request Reference: ${request._id}</p>
+    <p>Thank you for using our system.</p>
+`;
 
         if (resident?.email !== emailRecipient) {
             emailHTML = `<p>The request for ${resident?.firstName || "your household member"} has been verified.</p>` + emailHTML;
         }
 
-        await transporter.sendMail({
-            from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
-            to: emailRecipient,
+        const sendSmtpEmail = {
+            sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+            to: [{ email: emailRecipient }],
             subject: "Request Status Update - Verified",
-            html: emailHTML
-        });
+            htmlContent: emailHTML,
+        };
 
-        console.log("✅ Verification email sent:", emailRecipient);
+        try {
+            await brevoClient.sendTransacEmail(sendSmtpEmail);
+            console.log("✅ Verification email sent:", emailRecipient);
+        } catch (error) {
+            console.error("❌ Error sending verification email via Brevo:", error.message);
+        }
+
+        res.json({ success: true, message: "Request verified!", requestStatus: "Verified" });
+
 
         res.json({ success: true, message: "Request verified!", requestStatus: "Verified" });
 
@@ -4063,23 +3725,28 @@ app.post("/noDoc/:id", async (req, res) => {
         if (!emailRecipient) return res.json({ success: true, message: "Request declined, no email sent." });
 
         let emailHTML = `
-            <p>Your request has been <strong>Declined</strong>.</p>
-            <p>Reason: <strong>${notes || "No specific remarks."}</strong></p>
-            <p>Request Reference: ${request._id}</p>
-        `;
+    <p>Your request has been <strong>Declined</strong>.</p>
+    <p>Reason: <strong>${notes || "No specific remarks."}</strong></p>
+    <p>Request Reference: ${request._id}</p>
+`;
 
         if (resident?.email !== emailRecipient) {
             emailHTML = `<p>The request for ${resident?.firstName || "your household member"} has been declined.</p>` + emailHTML;
         }
 
-        await transporter.sendMail({
-            from: '"Barangay San Andres" <wilyn.sabatinasuncion@gmail.com>',
-            to: emailRecipient,
+        const sendSmtpEmail = {
+            sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+            to: [{ email: emailRecipient }],
             subject: "Request Status Update - Declined",
-            html: emailHTML
-        });
+            htmlContent: emailHTML,
+        };
 
-        console.log("❌ Decline email sent:", emailRecipient);
+        try {
+            await brevoClient.sendTransacEmail(sendSmtpEmail);
+            console.log("❌ Decline email sent:", emailRecipient);
+        } catch (error) {
+            console.error("Error sending decline email via Brevo:", error.message);
+        }
 
         res.json({ success: true, message: "Request declined!", requestStatus: "Declined" });
 
@@ -4120,26 +3787,29 @@ app.post("/release/:id", async (req, res) => {
         res.json({ success: true, message });
 
         if (resident?.email) {
-            const mailOptions = {
-                from: 'wilyn.sabatinasuncion@gmail.com',
-                to: resident.email,
+            const emailHTML = `
+        <p>Dear <strong>${resident.firstName} ${resident.lastName}</strong>,</p>
+        <p>Your requested document has been <strong>released!</strong></p>
+        <p>Thank you.</p>
+    `;
+
+            const sendSmtpEmail = {
+                sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+                to: [{ email: resident.email }],
                 subject: "Your Document has been released",
-                html: `
-                    <p>Dear <strong>${resident.firstName} ${resident.lastName}</strong>,</p>
-                    <p>Your requested document has been <strong>released!</strong>.</p>
-                    <p>Thank you.</p>
-                `
+                htmlContent: emailHTML,
             };
 
             try {
-                await transporter.sendMail(mailOptions);
-                console.log(`Email sent to ${resident.email}`);
+                await brevoClient.sendTransacEmail(sendSmtpEmail);
+                console.log(`✅ Email sent to ${resident.email}`);
                 message += " Email notification sent.";
-            } catch (emailError) {
-                console.error("Error sending email:", emailError);
+            } catch (error) {
+                console.error("❌ Error sending email via Brevo:", error.message);
                 message += " However, the email notification could not be sent.";
             }
         }
+
 
 
     } catch (error) {
@@ -4179,25 +3849,28 @@ app.post("/cancel/:id", async (req, res) => {
         res.json({ success: true, message });
 
         if (resident?.email) {
-            const mailOptions = {
-                from: 'wilyn.sabatinasuncion@gmail.com',
-                to: resident.email,
+            const emailHTML = `
+        <p>Dear <strong>${resident.firstName} ${resident.lastName}</strong>,</p>
+        <p>You have successfully <strong>cancelled</strong> your request.</p>
+    `;
+
+            const sendSmtpEmail = {
+                sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+                to: [{ email: resident.email }],
                 subject: "Request Cancelled",
-                html: `
-                    <p>Dear <strong>${resident.firstName} ${resident.lastName}</strong>,</p>
-                    <p>You have successfully<strong>cancelled</strong> your request.</p>
-                `
+                htmlContent: emailHTML,
             };
 
             try {
-                await transporter.sendMail(mailOptions);
-                console.log(`Email sent to ${resident.email}`);
+                await brevoClient.sendTransacEmail(sendSmtpEmail);
+                console.log(`✅ Email sent to ${resident.email}`);
                 message += " Email notification sent.";
-            } catch (emailError) {
-                console.error("Error sending email:", emailError);
+            } catch (error) {
+                console.error("❌ Error sending email via Brevo:", error.message);
                 message += " However, the email notification could not be sent.";
             }
         }
+
 
 
     } catch (error) {
@@ -5520,20 +5193,23 @@ app.post("/forgotX", async (req, res) => {
 
         res.render("passSuccess", { email: emailToSend, error: "Password Reset Successfully!" });
 
-        const mailOptions = {
-            from: '"Barangay System" <wilyn.sabatinasuncion@gmail.com>',
-            to: emailToSend,
-            subject: 'Password Reset Request',
-            html: `
-        <p>A temporary password has been generated for your account:</p>
-        <p style="font-size: 18px; font-weight: bold;">🔑 ${newPassword}</p>
-        <p>Please log in and change your password immediately for security reasons.</p>
-      `,
+        const emailHTML = `
+    <p>A temporary password has been generated for your account:</p>
+    <p style="font-size: 18px; font-weight: bold;">🔑 ${newPassword}</p>
+    <p>Please log in and change your password immediately for security reasons.</p>
+`;
+
+        const sendSmtpEmail = {
+            sender: { name: "Barangay System", email: "jerseyjimenez10@gmail.com" },
+            to: [{ email: emailToSend }],
+            subject: "Password Reset Request",
+            htmlContent: emailHTML,
         };
 
-        transporter.sendMail(mailOptions).catch(error => {
-            console.error("Error sending email:", error);
-        });
+        brevoClient.sendTransacEmail(sendSmtpEmail)
+            .then(() => console.log(`✅ Password reset email sent to ${emailToSend}`))
+            .catch((error) => console.error("❌ Error sending email via Brevo:", error.message));
+
 
     } catch (error) {
         console.error("Error resetting password:", error);
@@ -6261,33 +5937,39 @@ app.post("/add-member", async (req, res) => {
         // Send email in background
         (async () => {
             try {
-                const shouldSendEmail = true;
                 let recipientEmail = email;
 
-                if (shouldSendEmail && !recipientEmail && rel === "member" && headId) {
+                if (!recipientEmail && rel === "member" && headId) {
                     const headResident = await db.collection("resident").findOne({ _id: new ObjectId(headId) });
                     if (headResident && headResident.email) recipientEmail = headResident.email;
                 }
 
-                if (shouldSendEmail && recipientEmail) {
-                    const mailOptions = {
-                        from: "wilyn.sabatinasuncion@gmail.com",
-                        to: recipientEmail,
+                if (recipientEmail) {
+                    const emailHTML = `
+                <p>Dear <strong>${firstName}</strong>,</p>
+                <p>Your resident account has been created.</p>
+                <p><strong>Username:</strong> ${username}</p>
+                <p><strong>Password:</strong> ${password}</p>
+                <p>Please keep your credentials secure.</p>
+                <p>Thank you.</p>
+            `;
+
+                    const sendSmtpEmail = {
+                        sender: { name: "Barangay System", email: "jerseyjimenez10@gmail.com" },
+                        to: [{ email: recipientEmail }],
                         subject: "Your Resident Account Details",
-                        text: `Dear ${firstName},\n\nYour resident account has been created.\nUsername: ${username}\nPassword: ${password}\n\nPlease keep your credentials secure.\n\nThank you.`,
-                        html: `<p>Dear <strong>${firstName}</strong>,</p>
-                               <p>Your resident account has been created.</p>
-                               <p><strong>Username:</strong> ${username}</p>
-                               <p><strong>Password:</strong> ${password}</p>
-                               <p>Please keep your credentials secure.</p>
-                               <p>Thank you.</p>`
+                        htmlContent: emailHTML,
                     };
-                    await transporter.sendMail(mailOptions);
+
+                    brevoClient.sendTransacEmail(sendSmtpEmail)
+                        .then(() => console.log(`✅ Resident account email sent to ${recipientEmail}`))
+                        .catch(err => console.error("❌ Error sending resident email via Brevo:", err.message));
                 }
             } catch (err) {
-                console.error("Error sending resident email:", err);
+                console.error("❌ Error preparing resident email:", err);
             }
         })();
+
 
     } catch (error) {
         console.error("Error adding resident:", error);
@@ -6413,33 +6095,37 @@ app.post("/add-memberR", async (req, res) => {
         // Send email in background
         (async () => {
             try {
-                const shouldSendEmail = true;
                 let recipientEmail = email;
 
-                // Use head's email if personal email is not provided
-                if (shouldSendEmail && !recipientEmail && headId) {
+                if (!recipientEmail && headId) {
                     const headResident = await db.collection("resident").findOne({ _id: new ObjectId(headId) });
                     if (headResident && headResident.email) recipientEmail = headResident.email;
                 }
 
-                if (shouldSendEmail && recipientEmail) {
-                    const mailOptions = {
-                        from: "wilyn.sabatinasuncion@gmail.com",
-                        to: recipientEmail,
+                if (recipientEmail) {
+                    const emailHTML = `
+                <p style="font-size: 18px; text-align: center;">Your registration has been submitted successfully!</p>
+                <div style="font-size: 14px; text-align: center; font-weight: 500;">
+                    The Barangay Secretary will verify your details within 24 hours on business days and will notify you via email regarding its status. Weekends are excluded.
+                </div>
+            `;
+
+                    const sendSmtpEmail = {
+                        sender: { name: "Barangay System", email: "jerseyjimenez10@gmail.com" },
+                        to: [{ email: recipientEmail }],
                         subject: "Account Registration",
-                        text: `Dear ${firstName},\n\nYour registration has been submitted successfully! \n\nThank you.`,
-                        html: `
-                            <p style="font-size: 18px; text-align: center;">Your registration has been submitted successfully!</p>
-                            <div style="font-size: 14px; text-align: center; font-weight: 500;">
-                                The Barangay Secretary will verify your details within 24 hours on business days and will notify you via email regarding its status. Weekends are excluded.
-                            </div>`
+                        htmlContent: emailHTML
                     };
-                    await transporter.sendMail(mailOptions);
+
+                    brevoClient.sendTransacEmail(sendSmtpEmail)
+                        .then(() => console.log(`✅ Registration email sent to ${recipientEmail}`))
+                        .catch(err => console.error("❌ Error sending registration email via Brevo:", err.message));
                 }
             } catch (err) {
-                console.error("Error sending resident email:", err);
+                console.error("❌ Error preparing registration email:", err);
             }
         })();
+
 
     } catch (error) {
         console.error("Error adding resident:", error);

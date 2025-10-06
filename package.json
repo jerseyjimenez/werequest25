@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "@sendgrid/mail": "^8.1.4",
+    "@sendinblue/client": "^3.3.1",
     "axios": "^1.8.4",
     "bcryptjs": "^3.0.2",
     "body-parser": "^1.20.3",
