@@ -799,7 +799,8 @@ app.get("/ann", isLogin, async (req, res) => {
 app.post("/newAnn", upload.single("image"), async (req, res) => {
     try {
         const { title, description, postBy } = req.body;
-        const imagePath = req.file ? path.join("/uploads", req.file.filename) : null;
+        // Cloudinary gives you the file URL directly
+        const imagePath = req.file ? req.file.path : null;
 
         if (!title || !description) {
             return res.send('<script>alert("Title and Description are required!"); window.location="/ann";</script>');
@@ -816,7 +817,9 @@ app.post("/newAnn", upload.single("image"), async (req, res) => {
         await db.collection("announcements").insertOne(newAnnouncement);
 
         // Fetch all resident emails
-        const residents = await db.collection("resident").find({ email: { $exists: true, $ne: null } }).toArray();
+        const residents = await db.collection("resident")
+            .find({ email: { $exists: true, $ne: null } })
+            .toArray();
 
         // Send emails using Nodemailer
         const emailPromises = residents.map(resident => {
@@ -824,23 +827,19 @@ app.post("/newAnn", upload.single("image"), async (req, res) => {
                 from: 'wilyn.sabatinasuncion@gmail.com',
                 to: resident.email,
                 subject: `New Announcement: ${title}`,
-                text: `Dear Resident,\n\nWe have a new announcement:\n\nTitle: ${title}\nDescription: ${description}\n\nThank you.`,
                 html: `
                     <p>Dear Resident,</p>
                     <p>We have a new announcement:</p>
                     <p><strong>Title:</strong> ${title}</p>
                     <p><strong>Description:</strong> ${description}</p>
+                    ${imagePath ? `<p><img src="${imagePath}" alt="Announcement Image" style="max-width:100%;"></p>` : ""}
                     <p>Thank you.</p>
                 `
             };
 
             return transporter.sendMail(mailOptions)
-                .then(() => {
-                    console.log(`Email successfully sent to ${resident.email}`);
-                })
-                .catch((error) => {
-                    console.error(`Failed to send email to ${resident.email}:`, error.message);
-                });
+                .then(() => console.log(`Email successfully sent to ${resident.email}`))
+                .catch((error) => console.error(`Failed to send email to ${resident.email}:`, error.message));
         });
 
         await Promise.all(emailPromises);
@@ -854,67 +853,86 @@ app.post("/newAnn", upload.single("image"), async (req, res) => {
 });
 
 app.post("/editAnn/:id", isLogin, upload.single("image"), async (req, res) => {
-    try {
-        const { id } = req.params; // Get the ID from the URL parameter
-        const { title, description } = req.body; // Get the form fields (title and description)
-        const image = req.file; // Get the uploaded image file (if any)
+  try {
+    const { id } = req.params;
+    const { title, description } = req.body;
+    const image = req.file;
 
-        // Validate the ID
-        if (!ObjectId.isValid(id)) {
-            return res.status(400).send('<script>alert("Invalid announcement ID!"); window.location="/ann";</script>');
-        }
-
-        const objectId = new ObjectId(id); // Convert the ID to an ObjectId
-
-        // Fetch the existing announcement from the database
-        const existingAnnouncement = await db.collection("announcements").findOne({ _id: objectId });
-
-        if (!existingAnnouncement) {
-            return res.status(404).send('<script>alert("Announcement not found!"); window.location="/ann";</script>');
-        }
-
-        // Prepare the update data object
-        const updateData = {
-            title: title || existingAnnouncement.title, // Use existing title if new title is not provided
-            description: description || existingAnnouncement.description, // Use existing description if new description is not provided
-            updatedAt: new Date() // Always update the timestamp
-        };
-
-        // If there's an image, handle it
-if (image) {
-    const imageUrl = image.path; 
-    updateData.image = imageUrl; 
-
-    if (existingAnnouncement.image) {
-        const publicId = getPublicIdFromUrl(existingAnnouncement.image);
-        if (publicId) {
-            cloudinary.uploader.destroy(publicId, (err, result) => {
-                if (err) console.error("Error deleting old image from Cloudinary:", err);
-                else console.log("Old image deleted:", result);
-            });
-        }
+    // Validate ObjectId
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send('<script>alert("Invalid announcement ID!"); window.location="/ann";</script>');
     }
-} else {
-    updateData.image = existingAnnouncement.image;
-}
 
-        // Update the announcement in the database
-        const result = await db.collection("announcements").updateOne(
-            { _id: objectId }, // Find the announcement by ID
-            { $set: updateData } // Update the fields with new data
-        );
+    const objectId = new ObjectId(id);
+    const existingAnnouncement = await db.collection("announcements").findOne({ _id: objectId });
 
-        // Check if the update was successful
-        if (result.modifiedCount > 0) {
-            return res.send('<script>alert("Announcement updated successfully!"); window.location="/ann";</script>');
-        } else {
-            return res.send('<script>alert("No changes were made!"); window.location="/ann";</script>');
-        }
-    } catch (err) {
-        console.error("Error updating announcement:", err);
-        res.status(500).send('<script>alert("Error updating the announcement. Please try again."); window.location="/ann";</script>');
+    if (!existingAnnouncement) {
+      return res.status(404).send('<script>alert("Announcement not found!"); window.location="/ann";</script>');
     }
+
+    // Build update object
+    const updateData = {
+      title: title || existingAnnouncement.title,
+      description: description || existingAnnouncement.description,
+      updatedAt: new Date()
+    };
+
+    // If a new image is uploaded, update Cloudinary
+    if (image) {
+      try {
+        // Upload new image to Cloudinary
+        const uploadedImage = await cloudinary.uploader.upload(image.path, {
+          folder: "barangay_announcements",
+          resource_type: "image"
+        });
+        updateData.image = uploadedImage.secure_url;
+
+        // Delete old image if exists
+        if (existingAnnouncement.image) {
+          const publicId = getPublicIdFromUrl(existingAnnouncement.image);
+          if (publicId) {
+            await cloudinary.uploader.destroy(publicId);
+            console.log("Old image deleted:", publicId);
+          }
+        }
+      } catch (uploadErr) {
+        console.error("Cloudinary upload error:", uploadErr);
+        return res.status(500).send('<script>alert("Error uploading new image. Please try again."); window.location="/ann";</script>');
+      }
+    } else {
+      updateData.image = existingAnnouncement.image;
+    }
+
+    // Update in database
+    const result = await db.collection("announcements").updateOne(
+      { _id: objectId },
+      { $set: updateData }
+    );
+
+    if (result.modifiedCount > 0) {
+      return res.send('<script>alert("Announcement updated successfully!"); window.location="/ann";</script>');
+    } else {
+      return res.send('<script>alert("No changes were made!"); window.location="/ann";</script>');
+    }
+  } catch (err) {
+    console.error("Error updating announcement:", err);
+    res.status(500).send('<script>alert("Error updating the announcement. Please try again."); window.location="/ann";</script>');
+  }
 });
+
+// Helper function to extract Cloudinary public_id from secure_url
+function getPublicIdFromUrl(url) {
+  try {
+    const parts = url.split("/");
+    const fileWithExt = parts.pop();
+    const folder = parts.pop();
+    const publicId = `${folder}/${fileWithExt.split(".")[0]}`;
+    return publicId;
+  } catch (e) {
+    console.error("Error extracting public_id:", e);
+    return null;
+  }
+}
 
 // Delete an announcement
 app.post("/deleteAnn/:id", async (req, res) => {
