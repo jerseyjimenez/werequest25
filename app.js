@@ -800,7 +800,8 @@ app.get("/ann", isLogin, async (req, res) => {
 
 app.post("/newAnn", upload.single("image"), async (req, res) => {
     try {
-        const { title, description, postBy } = req.body;
+        const { title, description } = req.body;
+        const postBy = req.session.userId; // ✅ use logged-in user's ID instead
         // Cloudinary gives you the file URL directly
         const imagePath = req.file ? req.file.path : null;
 
@@ -5496,19 +5497,16 @@ const generateRandomPassword = () => {
 
 app.post("/forgotX", async (req, res) => {
     try {
-        const { username, email } = req.body;
+        const { email } = req.body;
 
-        if (!username) {
-            return res.redirect("/forgot?error=" + encodeURIComponent("Username is required"));
+        if (!email) {
+            return res.redirect("/forgot?error=" + encodeURIComponent("Email is required"));
         }
 
-        const query = { username };
-        if (email) query.email = email;
-
-        const user = await db.collection("resident").findOne(query);
+        const user = await db.collection("resident").findOne({ email });
 
         if (!user) {
-            return res.redirect("/forgot?error=" + encodeURIComponent("Invalid Credentials, Try Again!"));
+            return res.redirect("/forgot?error=" + encodeURIComponent("No account found with that email address"));
         }
 
         const newPassword = generateRandomPassword();
@@ -5518,44 +5516,30 @@ app.post("/forgotX", async (req, res) => {
             { $set: { password: newPassword, reset: 1 } }
         );
 
-        let emailToSend = user.email;
+        const emailToSend = user.email;
 
-        if (!emailToSend && user.headId) {
-            const familyHead = await db.collection("resident").findOne({ _id: new ObjectId(user.headId) });
-            emailToSend = familyHead ? familyHead.email : null;
-        }
+        res.render("passSuccess", { email: emailToSend, error: "Password Reset Successfully!" });
 
-        if (!emailToSend) {
-            return res.redirect("/forgot?error=" + encodeURIComponent("No email found for user or family head"));
-        }
-
-        // ✅ Nodemailer email content
         const mailOptions = {
-            from: '"Barangay System" <yourgmail@gmail.com>',
+            from: '"Barangay System" <wilyn.sabatinasuncion@gmail.com>',
             to: emailToSend,
             subject: 'Password Reset Request',
             html: `
-                <p>A temporary password has been generated for your account:</p>
-                <p style="font-size: 18px; font-weight: bold;">🔑 ${newPassword}</p>
-                <p>Please log in and change your password immediately for security reasons.</p>
-            `,
+        <p>A temporary password has been generated for your account:</p>
+        <p style="font-size: 18px; font-weight: bold;">🔑 ${newPassword}</p>
+        <p>Please log in and change your password immediately for security reasons.</p>
+      `,
         };
 
-        try {
-            await transporter.sendMail(mailOptions);
-        } catch (error) {
-            console.error('Error sending email:', error);
-            return res.redirect("/forgot?error=" + encodeURIComponent("Failed to send email"));
-        }
-
-        res.render("passSuccess", { username, email: emailToSend, error: "Password Reset Successfully!" });
+        transporter.sendMail(mailOptions).catch(error => {
+            console.error("Error sending email:", error);
+        });
 
     } catch (error) {
         console.error("Error resetting password:", error);
         res.redirect("/forgot?error=" + encodeURIComponent("Internal Server Error"));
     }
 });
-
 
 app.get("/rqtSuccess", isLogin, isReq, (req, res) => res.render("rqtSuccess", { layout: "design", title: "Services", activePage: "rqt" }));
 app.get('/rqtView/:id', isLogin, myRqtView);
