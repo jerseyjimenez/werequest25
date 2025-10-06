@@ -538,7 +538,6 @@ const isHr = async (req, res, next) => {
     }
 };
 
-
 const getPublicIdFromUrl = (url) => {
   try {
     const parts = url.split("/upload/")[1]; // "v1698765432/uploads/abc123.jpg"
@@ -851,7 +850,6 @@ app.post("/newAnn", upload.single("image"), async (req, res) => {
         res.status(500).send('<script>alert("Internal Server Error!"); window.location="/ann";</script>');
     }
 });
-
 app.post("/editAnn/:id", isLogin, upload.single("image"), async (req, res) => {
   try {
     const { id } = req.params;
@@ -872,18 +870,18 @@ app.post("/editAnn/:id", isLogin, upload.single("image"), async (req, res) => {
 
     // Build update object
     const updateData = {
-      title: title || existingAnnouncement.title,
-      description: description || existingAnnouncement.description,
-      updatedAt: new Date()
+      title: title?.trim() || existingAnnouncement.title,
+      description: description?.trim() || existingAnnouncement.description,
+      updatedAt: new Date(),
     };
 
-    // If a new image is uploaded, update Cloudinary
+    // If new image uploaded, replace Cloudinary image
     if (image) {
       try {
-        // Upload new image to Cloudinary
+        // Upload new image
         const uploadedImage = await cloudinary.uploader.upload(image.path, {
           folder: "barangay_announcements",
-          resource_type: "image"
+          resource_type: "image",
         });
         updateData.image = uploadedImage.secure_url;
 
@@ -892,15 +890,13 @@ app.post("/editAnn/:id", isLogin, upload.single("image"), async (req, res) => {
           const publicId = getPublicIdFromUrl(existingAnnouncement.image);
           if (publicId) {
             await cloudinary.uploader.destroy(publicId);
-            console.log("Old image deleted:", publicId);
+            console.log("✅ Old image deleted:", publicId);
           }
         }
       } catch (uploadErr) {
-        console.error("Cloudinary upload error:", uploadErr);
+        console.error("❌ Cloudinary upload error:", uploadErr);
         return res.status(500).send('<script>alert("Error uploading new image. Please try again."); window.location="/ann";</script>');
       }
-    } else {
-      updateData.image = existingAnnouncement.image;
     }
 
     // Update in database
@@ -909,30 +905,18 @@ app.post("/editAnn/:id", isLogin, upload.single("image"), async (req, res) => {
       { $set: updateData }
     );
 
-    if (result.modifiedCount > 0) {
+    if (result.matchedCount > 0) {
       return res.send('<script>alert("Announcement updated successfully!"); window.location="/ann";</script>');
     } else {
       return res.send('<script>alert("No changes were made!"); window.location="/ann";</script>');
     }
   } catch (err) {
-    console.error("Error updating announcement:", err);
+    console.error("❌ Error updating announcement:", err);
     res.status(500).send('<script>alert("Error updating the announcement. Please try again."); window.location="/ann";</script>');
   }
 });
 
-// Helper function to extract Cloudinary public_id from secure_url
-function getPublicIdFromUrl(url) {
-  try {
-    const parts = url.split("/");
-    const fileWithExt = parts.pop();
-    const folder = parts.pop();
-    const publicId = `${folder}/${fileWithExt.split(".")[0]}`;
-    return publicId;
-  } catch (e) {
-    console.error("Error extracting public_id:", e);
-    return null;
-  }
-}
+
 
 // Delete an announcement
 app.post("/deleteAnn/:id", async (req, res) => {
@@ -2317,43 +2301,48 @@ app.post("/update-resident/:id", async (req, res) => {
 });
 
 app.post("/upload-photo/:id", upload.single("photo"), async (req, res) => {
-    try {
-        console.log("Request body:", req.body); // Debugging
-        console.log("Uploaded file:", req.file); // Debugging
+  try {
+    const residentId = req.params.id;
 
-        const residentId = req.params.id;
-
-        if (!req.file) {
-            return res.status(400).send("No file uploaded.");
-        }
-
-        const photoPath = `/uploads/${req.file.filename}`;
-
-        await db.collection("resident").updateOne(
-            { _id: new ObjectId(residentId) },
-            { $set: { photo: photoPath } }
-        );
-
-        res.redirect(`/resv/${residentId}`);
-    } catch (err) {
-        console.error("Error uploading photo:", err);
-        res.status(500).send("Error uploading photo.");
+    if (!req.file) {
+      return res.status(400).send("No file uploaded.");
     }
+
+    // Upload to Cloudinary
+    const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
+      folder: "resident_photos",
+      resource_type: "image"
+    });
+
+    await db.collection("resident").updateOne(
+      { _id: new ObjectId(residentId) },
+      { $set: { photo: uploadedImage.secure_url } }
+    );
+
+    res.redirect(`/resv/${residentId}`);
+  } catch (err) {
+    console.error("Error uploading photo:", err);
+    res.status(500).send("Error uploading photo.");
+  }
 });
 
 app.post("/upload-my-photo", isLogin, upload.single("image"), async (req, res) => {
   try {
     const userId = req.session.userId;
+
     if (!req.file || !userId) {
       return res.status(400).send("Missing file or session.");
     }
 
-    const imageUrl = req.file.path; // Cloudinary automatically gives you the hosted URL
+    // Upload to Cloudinary
+    const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
+      folder: "resident_photos",
+      resource_type: "image"
+    });
 
-    // Save Cloudinary URL to database
     await db.collection("resident").updateOne(
       { _id: new ObjectId(userId) },
-      { $set: { photo: imageUrl } }
+      { $set: { photo: uploadedImage.secure_url } }
     );
 
     res.status(200).send("Photo uploaded successfully.");
@@ -2362,7 +2351,6 @@ app.post("/upload-my-photo", isLogin, upload.single("image"), async (req, res) =
     res.status(500).send("Error uploading photo.");
   }
 });
-
 
 app.post("/add-business", async (req, res) => {
     try {
