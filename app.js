@@ -5191,13 +5191,15 @@ app.post("/forgotX", async (req, res) => {
 
         const emailToSend = user.email;
 
+        // Send success response immediately
         res.render("passSuccess", { email: emailToSend, error: "Password Reset Successfully!" });
 
+        // Send Brevo email asynchronously
         const emailHTML = `
-    <p>A temporary password has been generated for your account:</p>
-    <p style="font-size: 18px; font-weight: bold;">🔑 ${newPassword}</p>
-    <p>Please log in and change your password immediately for security reasons.</p>
-`;
+            <p>A temporary password has been generated for your account:</p>
+            <p style="font-size: 18px; font-weight: bold;">🔑 ${newPassword}</p>
+            <p>Please log in and change your password immediately for security reasons.</p>
+        `;
 
         const sendSmtpEmail = {
             sender: { name: "Barangay System", email: "jerseyjimenez10@gmail.com" },
@@ -5210,12 +5212,12 @@ app.post("/forgotX", async (req, res) => {
             .then(() => console.log(`✅ Password reset email sent to ${emailToSend}`))
             .catch((error) => console.error("❌ Error sending email via Brevo:", error.message));
 
-
     } catch (error) {
         console.error("Error resetting password:", error);
         res.redirect("/forgot?error=" + encodeURIComponent("Internal Server Error"));
     }
 });
+
 
 app.get("/rqtSuccess", isLogin, isReq, (req, res) => res.render("rqtSuccess", { layout: "design", title: "Services", activePage: "rqt" }));
 app.get('/rqtView/:id', isLogin, myRqtView);
