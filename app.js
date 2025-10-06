@@ -12,11 +12,11 @@ const axios = require("axios");
 const ExcelJS = require("exceljs");
 const PDFDocument = require("pdfkit");
 const nodemailer = require('nodemailer');
-
 const SibApiV3Sdk = require("@sendinblue/client");
 
-const client2 = new SibApiV3Sdk.TransactionalEmailsApi();
-client2.setApiKey(
+const brevoClient = new SibApiV3Sdk.TransactionalEmailsApi();
+
+brevoClient.setApiKey(
     SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
     process.env.BREVO_API_KEY
 );
@@ -5191,10 +5191,10 @@ app.post("/forgotX", async (req, res) => {
 
         const emailToSend = user.email;
 
-        // Send success response immediately
+        // Respond immediately
         res.render("passSuccess", { email: emailToSend, error: "Password Reset Successfully!" });
 
-        // Send Brevo email asynchronously
+        // Send email asynchronously via Brevo
         const emailHTML = `
             <p>A temporary password has been generated for your account:</p>
             <p style="font-size: 18px; font-weight: bold;">🔑 ${newPassword}</p>
@@ -5217,7 +5217,6 @@ app.post("/forgotX", async (req, res) => {
         res.redirect("/forgot?error=" + encodeURIComponent("Internal Server Error"));
     }
 });
-
 
 app.get("/rqtSuccess", isLogin, isReq, (req, res) => res.render("rqtSuccess", { layout: "design", title: "Services", activePage: "rqt" }));
 app.get('/rqtView/:id', isLogin, myRqtView);
