@@ -82,9 +82,9 @@ const requireAuth = (req, res, next) => {
 };
 
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.API_KEY,
+  api_secret: process.env.API_SECRET
 });
 
 const storage = new CloudinaryStorage({
@@ -850,6 +850,7 @@ app.post("/newAnn", upload.single("image"), async (req, res) => {
         res.status(500).send('<script>alert("Internal Server Error!"); window.location="/ann";</script>');
     }
 });
+
 app.post("/editAnn/:id", isLogin, upload.single("image"), async (req, res) => {
   try {
     const { id } = req.params;
