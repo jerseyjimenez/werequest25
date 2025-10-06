@@ -89,13 +89,15 @@ cloudinary.config({
 
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
-    params: {
-        folder: "barangay_proofs",
-        allowed_formats: ["jpg", "png", "jpeg", "webp", "pdf", "doc", "docx"],
-        resource_type: "auto",
+    params: async (req, file) => {
+        const isDocument = /\.(pdf|doc|docx)$/i.test(file.originalname);
+        return {
+            folder: "barangay_proofs",
+            resource_type: isDocument ? "raw" : "image", // 👈 detects automatically
+            allowed_formats: ["jpg", "png", "jpeg", "webp", "pdf", "doc", "docx"],
+        };
     },
 });
-
 const upload = multer({ storage });
 
 const isLogin = async (req, res, next) => {
