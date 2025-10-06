@@ -18,11 +18,6 @@ const SECRET_KEY = "6LflzO4qAAAAAF4n0ABQ2YyHGPSA3RDjvtvFt1AQ";
 const { v2: cloudinary } = require("cloudinary");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
-cloudinary.config({
-  cloud_name: process.env.CLOUD_NAME,
-  api_key: process.env.API_KEY,
-  api_secret: process.env.API_SECRET,
-});
 
 const fs = require('fs');
 const uploadDir = 'public/uploads';
@@ -95,8 +90,9 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: "uploads",
-    allowed_formats: ["jpg", "png", "jpeg", "webp"],
+    folder: "barangay_proofs",
+    allowed_formats: ["jpg", "png", "jpeg", "webp", "pdf", "doc", "docx"],
+    resource_type: "auto",
   },
 });
 
@@ -3076,7 +3072,7 @@ const upload2 = multer({
     }
 });
 
-app.post("/reqDocument", isLogin, upload2.array("proof[]"), async (req, res) => {
+app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
   const sessionUserId = req.user._id; // Logged-in user ID
 
   try {
@@ -3087,15 +3083,7 @@ app.post("/reqDocument", isLogin, upload2.array("proof[]"), async (req, res) => 
     // Upload proof files to Cloudinary
     let proof = [];
     if (req.files && req.files.length > 0) {
-      const uploadPromises = req.files.map(file =>
-        cloudinary.uploader.upload(file.path, {
-          folder: "barangay_proofs",
-          resource_type: "image"
-        })
-      );
-
-      const results = await Promise.all(uploadPromises);
-      proof = results.map(r => r.secure_url);
+    proof = req.files.map(file => file.path); // already Cloudinary URLs
     }
 
     // Ensure all inputs are arrays
@@ -3191,7 +3179,7 @@ app.post("/reqDocument", isLogin, upload2.array("proof[]"), async (req, res) => 
   }
 });
 
-app.post("/reqDocumentA", isLogin, upload2.array("proof[]"), async (req, res) => {
+app.post("/reqDocumentA", isLogin, upload.array("proof[]"), async (req, res) => {
   const sessionUserId = req.user._id; // Logged-in user ID
 
   try {
@@ -3202,14 +3190,7 @@ app.post("/reqDocumentA", isLogin, upload2.array("proof[]"), async (req, res) =>
     // Upload proof files to Cloudinary
     let proof = [];
     if (req.files && req.files.length > 0) {
-      const uploadPromises = req.files.map(file =>
-        cloudinary.uploader.upload(file.path, {
-          folder: "barangay_proofs",
-          resource_type: "image",
-        })
-      );
-      const results = await Promise.all(uploadPromises);
-      proof = results.map(r => r.secure_url);
+    proof = req.files.map(file => file.path); // already Cloudinary URLs
     }
 
     // Ensure all inputs are arrays
