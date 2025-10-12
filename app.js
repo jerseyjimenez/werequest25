@@ -969,128 +969,137 @@ app.post("/deleteAnn/:id", async (req, res) => {
 });
 
 app.post("/add-resident", async (req, res) => {
-    try {
-        const {
-            firstName, middleName, lastName, extName, position, houseNo, purok, role,
-            priority, priorityType, bDay, bMonth, bYear, birthPlace, gender,
-            civilStatus, precinct, phone, email, headId, soloParent, pwd, indigent
-        } = req.body;
+  try {
+    const {
+      firstName, middleName, lastName, extName, position, houseNo, purok, role,
+      priority, priorityType, bDay, bMonth, bYear, birthPlace, gender,
+      civilStatus, precinct, phone, email, headId, soloParent, pwd, indigent
+    } = req.body;
 
-        if (!firstName || !lastName || !houseNo || !purok || !role) {
-            return res.send('<script>alert("Please fill out all required fields!"); window.location="/rsd";</script>');
+    if (!firstName || !lastName || !houseNo || !purok || !role) {
+      return res.send('<script>alert("Please fill out all required fields!"); window.location="/rsd";</script>');
+    }
+
+    const birthDate = new Date(`${bYear}-${bMonth}-${bDay}`);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
+    let username = null;
+    let password = null;
+    let shouldSendEmail = true;
+
+    const officialPositions = [
+      "Punong Barangay", "Barangay Kagawad", "Barangay Secretary",
+      "Barangay Treasurer", "Barangay BHW", "Barangay BIC",
+      "Barangay BNS", "Barangay BPO", "Barangay Clerk", "Barangay Worker"
+    ];
+
+    const access = officialPositions.includes(position) ? 1 : 0;
+
+    if (age > 15) {
+      const generateRandomPassword = () => {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
+        let password = "";
+        for (let i = 0; i < 12; i++) {
+          password += chars.charAt(Math.floor(Math.random() * chars.length));
         }
+        return password;
+      };
 
-        const birthDate = new Date(`${bYear}-${bMonth}-${bDay}`);
-        const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-            age--;
-        }
+      password = generateRandomPassword();
 
-        let username = null;
-        let password = null;
-        let shouldSendEmail = true;
-
-        const officialPositions = [
-            "Punong Barangay", "Barangay Kagawad", "Barangay Secretary",
-            "Barangay Treasurer", "Barangay BHW", "Barangay BIC",
-            "Barangay BNS", "Barangay BPO", "Barangay Clerk", "Barangay Worker"
-        ];
-
-        const access = officialPositions.includes(position) ? 1 : 0;
-
-        if (age > 15) {
-            const generateRandomPassword = () => {
-                const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
-                let password = "";
-                for (let i = 0; i < 12; i++) {
-                    password += chars.charAt(Math.floor(Math.random() * chars.length));
-                }
-                return password;
-            };
-
-            password = generateRandomPassword();
-
-            const generateUsername = (firstName, middleName, lastName, bDay, bYear) => {
-                const firstPart = firstName.charAt(0).toLowerCase() + firstName.slice(-1).toLowerCase();
-                let middlePart = "";
-                if (middleName) {
-                    middlePart = middleName.charAt(0).toLowerCase() + middleName.slice(-1).toLowerCase();
-                } else {
-                    middlePart = lastName.charAt(0).toLowerCase() + lastName.slice(-1).toLowerCase();
-                }
-                const lastNameLower = lastName.toLowerCase();
-                return `${firstPart}${middlePart}.${lastNameLower}${bDay.padStart(2, '0')}${bYear.slice(-2)}`;
-            };
-
-            username = generateUsername(firstName, middleName, lastName, bDay, bYear);
+      const generateUsername = (firstName, middleName, lastName, bDay, bYear) => {
+        const firstPart = firstName.charAt(0).toLowerCase() + firstName.slice(-1).toLowerCase();
+        let middlePart = "";
+        if (middleName) {
+          middlePart = middleName.charAt(0).toLowerCase() + middleName.slice(-1).toLowerCase();
         } else {
-            shouldSendEmail = false;
+          middlePart = lastName.charAt(0).toLowerCase() + lastName.slice(-1).toLowerCase();
         }
+        const lastNameLower = lastName.toLowerCase();
+        return `${firstPart}${middlePart}.${lastNameLower}${bDay.padStart(2, '0')}${bYear.slice(-2)}`;
+      };
 
-        const isChecked = (value) => (value ? "YES" : "");
-        let finalIndigent = isChecked(indigent);
+      username = generateUsername(firstName, middleName, lastName, bDay, bYear);
+    } else {
+      shouldSendEmail = false;
+    }
 
-        if (role === "Member" && headId) {
-            const headResident = await db.collection("resident").findOne({ _id: new ObjectId(headId) });
-            if (headResident && headResident.indigent === "YES") {
-                finalIndigent = "YES";
-            }
+    const isChecked = (value) => (value ? "YES" : "");
+    let finalIndigent = isChecked(indigent);
+
+    if (role === "Member" && headId) {
+      const headResident = await db.collection("resident").findOne({ _id: new ObjectId(headId) });
+      if (headResident && headResident.indigent === "YES") {
+        finalIndigent = "YES";
+      }
+    }
+
+    const newResident = {
+      firstName, middleName, lastName, extName, position, houseNo, purok, role,
+      priority, priorityType, bDay, bMonth, bYear, birthPlace, gender,
+      civilStatus, precinct, phone, email, username, password,
+      access,
+      archive: 0, headId,
+      soloParent: isChecked(soloParent),
+      pwd: isChecked(pwd),
+      indigent: finalIndigent,
+      createdAt: new Date(),
+      updatedAt: null
+    };
+
+    await db.collection("resident").insertOne(newResident);
+
+    // ---------------------------
+    // 📧 Send Email via SendGrid
+    // ---------------------------
+    if (shouldSendEmail) {
+      let recipientEmail = email;
+
+      if (!email && headId) {
+        const headResident = await db.collection("resident").findOne({ _id: new ObjectId(headId) });
+        if (headResident && headResident.email) {
+          recipientEmail = headResident.email;
         }
+      }
 
-        const newResident = {
-            firstName, middleName, lastName, extName, position, houseNo, purok, role,
-            priority, priorityType, bDay, bMonth, bYear, birthPlace, gender,
-            civilStatus, precinct, phone, email, username, password,
-            access,
-            archive: 0, headId,
-            soloParent: isChecked(soloParent),
-            pwd: isChecked(pwd),
-            indigent: finalIndigent,
-            createdAt: new Date(),
-            updatedAt: null
+      if (recipientEmail) {
+        const msg = {
+          to: recipientEmail,
+          from: {
+            email: "jerseyjimenez10@gmail.com", // ⚠️ must be verified in SendGrid
+            name: "Barangay System",
+          },
+          subject: "Your Resident Account Details",
+          html: `
+            <p>Dear <strong>${firstName}</strong>,</p>
+            <p>Your resident account has been created.</p>
+            <p><strong>Username:</strong> ${username}</p>
+            <p><strong>Password:</strong> ${password}</p>
+            <p>Please keep your credentials secure.</p>
+            <p>Thank you.</p>
+          `,
         };
 
-        await db.collection("resident").insertOne(newResident);
-
-        if (shouldSendEmail) {
-            let recipientEmail = email;
-
-            if (!email && headId) {
-                const headResident = await db.collection("resident").findOne({ _id: new ObjectId(headId) });
-                if (headResident && headResident.email) {
-                    recipientEmail = headResident.email;
-                }
-            }
-
-            if (recipientEmail) {
-                try {
-                    await brevo.sendTransacEmail({
-                        sender: { email: "jerseyjimenez10@gmail.com", name: "Barangay System" },
-                        to: [{ email: recipientEmail }],
-                        subject: "Your Resident Account Details",
-                        htmlContent: `
-              <p>Dear <strong>${firstName}</strong>,</p>
-              <p>Your resident account has been created.</p>
-              <p><strong>Username:</strong> ${username}</p>
-              <p><strong>Password:</strong> ${password}</p>
-              <p>Please keep your credentials secure.</p>
-              <p>Thank you.</p>
-            `,
-                    });
-                    console.log(`✅ Email sent to ${recipientEmail}`);
-                } catch (error) {
-                    console.error(`❌ Failed to send email to ${recipientEmail}:`, error.message);
-                }
-            }
+        try {
+          await sgMail.send(msg);
+          console.log(`✅ Email sent to ${recipientEmail}`);
+        } catch (error) {
+          console.error(`❌ Failed to send email to ${recipientEmail}:`, error.message);
+          if (error.response) console.error(error.response.body);
         }
-
-        res.send('<script>alert("Resident added successfully!"); window.location="/rsd";</script>');
-    } catch (err) {
-        console.error("Error adding resident:", err.message);
-        res.status(500).send('<script>alert("Internal Server Error! Please try again."); window.location="/rsd";</script>');
+      }
     }
+
+    res.send('<script>alert("Resident added successfully!"); window.location="/rsd";</script>');
+  } catch (err) {
+    console.error("Error adding resident:", err.message);
+    res.status(500).send('<script>alert("Internal Server Error! Please try again."); window.location="/rsd";</script>');
+  }
 });
 
 
@@ -1870,19 +1879,192 @@ app.get("/rsdH", isLogin, async (req, res) => {
     }
 });
 
-app.post("/reset-resident/:id", async (req, res) => { if (!db) { return res.status(500).json({ success: false, message: "Database not connected" }); } const residentId = req.params.id; function generateRandomPassword() { const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+"; let password = ""; for (let i = 0; i < 12; i++) { password += chars.charAt(Math.floor(Math.random() * chars.length)); } return password; } const newPassword = generateRandomPassword(); try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) { return res.status(404).json({ success: false, message: "Resident not found" }); } const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { password: newPassword } }); if (result.modifiedCount === 1) { res.json({ success: true, newPassword }); let emailToSend = resident.email; if (!emailToSend && resident.headId) { const familyHead = await db.collection("resident").findOne({ _id: new ObjectId(resident.headId) }); emailToSend = familyHead ? familyHead.email : null; } if (emailToSend) { const sendSmtpEmail = { sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" }, to: [{ email: emailToSend }], subject: "Password Reset", htmlContent: ` <p>Dear Resident,</p> <p>Your password has been successfully reset.</p> <p><strong>New Password:</strong> ${newPassword}</p> <p>Please keep it secure and do not share it with anyone.</p> <p>Thank you,<br>Barangay San Andres</p> `, }; brevoClient.sendTransacEmail(sendSmtpEmail).then(() => console.log(`Password reset email sent to ${emailToSend}`)).catch((emailError) => console.error("Error sending email via Brevo:", emailError)); } } else { res.status(404).json({ success: false, message: "Resident not found or password not updated" }); } } catch (error) { console.error("Error resetting password:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
+// Reset Resident Password
+app.post("/reset-resident/:id", async (req, res) => {
+  if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
 
-app.post("/suspend-resident/:id", async (req, res) => { if (!db) { return res.status(500).json({ success: false, message: "Database not connected" }); } const residentId = req.params.id.trim(); if (!ObjectId.isValid(residentId)) { return res.status(400).json({ success: false, message: "Invalid resident ID" }); } try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) { return res.status(404).json({ success: false, message: "Resident not found" }); } const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { suspend: 1 } }); if (result.modifiedCount === 1) { res.json({ success: true, message: "Resident suspended successfully." }); if (resident.email) { const sendSmtpEmail = { sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" }, to: [{ email: resident.email }], subject: "Account Suspension Notification", htmlContent: ` <p>Dear <strong>${resident.firstName}</strong>,</p> <p>We regret to inform you that your barangay system account has been <strong>suspended</strong>.</p> <p>If you believe this was an error, please contact the Barangay San Andres office for assistance.</p> <p>Thank you,<br>Barangay San Andres</p> `, }; brevoClient.sendTransacEmail(sendSmtpEmail).then(() => console.log(`Suspension email sent to ${resident.email}`)).catch((emailError) => console.error("Error sending suspension email via Brevo:", emailError)); } } else { res.status(404).json({ success: false, message: "Resident not found or update failed." }); } } catch (error) { console.error("Error suspending resident:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
+  const residentId = req.params.id;
+  function generateRandomPassword() {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
+    let password = "";
+    for (let i = 0; i < 12; i++) password += chars.charAt(Math.floor(Math.random() * chars.length));
+    return password;
+  }
+  const newPassword = generateRandomPassword();
 
-app.post("/decline-reg/:id", async (req, res) => { if (!db) return res.status(500).json({ success: false, message: "Database not connected" }); const residentId = req.params.id.trim(); if (!ObjectId.isValid(residentId)) return res.status(400).json({ success: false, message: "Invalid resident ID" }); try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) return res.status(404).json({ success: false, message: "Resident not found" }); const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { suspend: 1, archive: 1, verify: 3 } }); if (result.modifiedCount === 1) { res.json({ success: true, message: "Resident suspended successfully." }); if (resident.email) { await brevo.sendTransacEmail({ sender: { email: "barangay.valdefuente@gmail.com", name: "Barangay Valdefuente" }, to: [{ email: resident.email }], subject: "Registration Declined", htmlContent: ` <p>Dear <strong>${resident.firstName}</strong>,</p> <p>We regret to inform you that your registration has been <strong>declined</strong>.</p> <p>If you believe this was an error, please contact your barangay office.</p> <p>Thank you.</p> ` }); } } else res.status(404).json({ success: false, message: "Resident not found." }); } catch (error) { console.error("Error:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
+  try {
+    const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
+    if (!resident) return res.status(404).json({ success: false, message: "Resident not found" });
 
-app.post("/approve-reg/:id", async (req, res) => { if (!db) return res.status(500).json({ success: false, message: "Database not connected" }); const residentId = req.params.id.trim(); if (!ObjectId.isValid(residentId)) return res.status(400).json({ success: false, message: "Invalid resident ID" }); try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) return res.status(404).json({ success: false, message: "Resident not found" }); const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { suspend: 0, archive: 0, verify: 0 } }); if (result.modifiedCount === 1) { res.json({ success: true, message: "Registration approved successfully." }); if (resident.email) { await brevo.sendTransacEmail({ sender: { email: "barangay.valdefuente@gmail.com", name: "Barangay Valdefuente" }, to: [{ email: resident.email }], subject: "Registration Approved", htmlContent: ` <p>Dear <strong>${resident.firstName}</strong>,</p> <p>Your registration has been <strong>approved</strong>.</p> <p><strong>Username:</strong> ${resident.username}</p> <p><strong>Password:</strong> ${resident.password}</p> <p>You may now access barangay services using your account.</p> <p>Thank you.</p> ` }); } } else res.status(404).json({ success: false, message: "Resident not found." }); } catch (error) { console.error("Error:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
+    const result = await db.collection("resident").updateOne(
+      { _id: new ObjectId(residentId) },
+      { $set: { password: newPassword } }
+    );
 
-app.post("/suspend2-resident/:id", async (req, res) => { if (!db) return res.status(500).json({ success: false, message: "Database not connected" }); const residentId = req.params.id.trim(); if (!ObjectId.isValid(residentId)) return res.status(400).json({ success: false, message: "Invalid resident ID" }); try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) return res.status(404).json({ success: false, message: "Resident not found" }); const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { suspend: 0 } }); if (result.modifiedCount === 1) { res.json({ success: true, message: "Resident unsuspended successfully." }); if (resident.email) { await brevo.sendTransacEmail({ sender: { email: "barangay.valdefuente@gmail.com", name: "Barangay Valdefuente" }, to: [{ email: resident.email }], subject: "Account Unsuspension Notification", htmlContent: ` <p>Dear <strong>${resident.firstName}</strong>,</p> <p>We are happy to inform you that your account has been <strong>unsuspended</strong>.</p> ` }); } } else res.status(404).json({ success: false, message: "Resident not found." }); } catch (error) { console.error("Error:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
+    if (result.modifiedCount === 1) {
+      res.json({ success: true, newPassword });
 
-app.post("/archive-resident/:id", async (req, res) => { if (!db) return res.status(500).json({ success: false, message: "Database not connected" }); const residentId = req.params.id.trim(); if (!ObjectId.isValid(residentId)) return res.status(400).json({ success: false, message: "Invalid resident ID" }); try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) return res.status(404).json({ success: false, message: "Resident not found" }); const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { archive: 1, suspend: 1 } }); if (result.modifiedCount === 1) { res.json({ success: true, message: "Resident archived and suspended successfully." }); if (resident.email) { await brevo.sendTransacEmail({ sender: { email: "barangay.valdefuente@gmail.com", name: "Barangay Valdefuente" }, to: [{ email: resident.email }], subject: "Account Archived & Suspended", htmlContent: ` <p>Dear <strong>${resident.firstName}</strong>,</p> <p>Your account has been <strong>archived and suspended</strong>.</p> <p>If you believe this was an error, please contact your barangay office.</p> <p>Thank you.</p> ` }); } } else res.status(404).json({ success: false, message: "Resident not found." }); } catch (error) { console.error("Error:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
+      let emailToSend = resident.email;
+      if (!emailToSend && resident.headId) {
+        const head = await db.collection("resident").findOne({ _id: new ObjectId(resident.headId) });
+        emailToSend = head ? head.email : null;
+      }
 
-app.post("/archive2-resident/:id", async (req, res) => { if (!db) return res.status(500).json({ success: false, message: "Database not connected" }); const residentId = req.params.id.trim(); if (!ObjectId.isValid(residentId)) return res.status(400).json({ success: false, message: "Invalid resident ID" }); try { const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) }); if (!resident) return res.status(404).json({ success: false, message: "Resident not found" }); const result = await db.collection("resident").updateOne({ _id: new ObjectId(residentId) }, { $set: { archive: 0, suspend: 0 } }); if (result.modifiedCount === 1) { res.json({ success: true, message: "Resident unarchived successfully." }); if (resident.email) { await brevo.sendTransacEmail({ sender: { email: "barangay.valdefuente@gmail.com", name: "Barangay Valdefuente" }, to: [{ email: resident.email }], subject: "Account Restored", htmlContent: ` <p>Dear <strong>${resident.firstName}</strong>,</p> <p>Your account has been <strong>restored</strong>. You may now continue using barangay services.</p> <p>Thank you.</p> ` }); } } else res.status(404).json({ success: false, message: "Resident not found." }); } catch (error) { console.error("Error:", error); res.status(500).json({ success: false, message: "Internal Server Error" }); } });
+      if (emailToSend) {
+        const msg = {
+          to: emailToSend,
+          from: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+          subject: "Password Reset",
+          html: `
+            <p>Dear Resident,</p>
+            <p>Your password has been successfully reset.</p>
+            <p><strong>New Password:</strong> ${newPassword}</p>
+            <p>Please keep it secure and do not share it with anyone.</p>
+            <p>Thank you,<br>Barangay San Andres</p>
+          `,
+        };
+
+        sgMail
+          .send(msg)
+          .then(() => console.log(`Password reset email sent to ${emailToSend}`))
+          .catch((err) => console.error("SendGrid error:", err));
+      }
+    } else {
+      res.status(404).json({ success: false, message: "Resident not found or password not updated" });
+    }
+  } catch (error) {
+    console.error("Error resetting password:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+// Suspend Resident
+app.post("/suspend-resident/:id", async (req, res) => {
+  if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
+
+  const residentId = req.params.id.trim();
+  if (!ObjectId.isValid(residentId))
+    return res.status(400).json({ success: false, message: "Invalid resident ID" });
+
+  try {
+    const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
+    if (!resident) return res.status(404).json({ success: false, message: "Resident not found" });
+
+    const result = await db.collection("resident").updateOne(
+      { _id: new ObjectId(residentId) },
+      { $set: { suspend: 1 } }
+    );
+
+    if (result.modifiedCount === 1) {
+      res.json({ success: true, message: "Resident suspended successfully." });
+
+      if (resident.email) {
+        const msg = {
+          to: resident.email,
+          from: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+          subject: "Account Suspension Notification",
+          html: `
+            <p>Dear <strong>${resident.firstName}</strong>,</p>
+            <p>We regret to inform you that your barangay system account has been <strong>suspended</strong>.</p>
+            <p>If you believe this was an error, please contact the Barangay San Andres office.</p>
+            <p>Thank you,<br>Barangay San Andres</p>
+          `,
+        };
+        sgMail.send(msg).then(() => console.log(`Suspension email sent to ${resident.email}`)).catch(console.error);
+      }
+    } else {
+      res.status(404).json({ success: false, message: "Resident not found or update failed." });
+    }
+  } catch (error) {
+    console.error("Error suspending resident:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+// Decline Registration
+app.post("/decline-reg/:id", async (req, res) => {
+  if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
+
+  const residentId = req.params.id.trim();
+  if (!ObjectId.isValid(residentId))
+    return res.status(400).json({ success: false, message: "Invalid resident ID" });
+
+  try {
+    const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
+    if (!resident) return res.status(404).json({ success: false, message: "Resident not found" });
+
+    const result = await db.collection("resident").updateOne(
+      { _id: new ObjectId(residentId) },
+      { $set: { suspend: 1, archive: 1, verify: 3 } }
+    );
+
+    if (result.modifiedCount === 1) {
+      res.json({ success: true, message: "Resident declined successfully." });
+
+      if (resident.email) {
+        const msg = {
+          to: resident.email,
+          from: { name: "Barangay Valdefuente", email: "barangay.valdefuente@gmail.com" },
+          subject: "Registration Declined",
+          html: `
+            <p>Dear <strong>${resident.firstName}</strong>,</p>
+            <p>We regret to inform you that your registration has been <strong>declined</strong>.</p>
+            <p>If you believe this was an error, please contact your barangay office.</p>
+            <p>Thank you.</p>
+          `,
+        };
+        sgMail.send(msg).catch(console.error);
+      }
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+// Approve Registration
+app.post("/approve-reg/:id", async (req, res) => {
+  if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
+
+  const residentId = req.params.id.trim();
+  if (!ObjectId.isValid(residentId))
+    return res.status(400).json({ success: false, message: "Invalid resident ID" });
+
+  try {
+    const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
+    if (!resident) return res.status(404).json({ success: false, message: "Resident not found" });
+
+    const result = await db.collection("resident").updateOne(
+      { _id: new ObjectId(residentId) },
+      { $set: { suspend: 0, archive: 0, verify: 0 } }
+    );
+
+    if (result.modifiedCount === 1) {
+      res.json({ success: true, message: "Registration approved successfully." });
+
+      if (resident.email) {
+        const msg = {
+          to: resident.email,
+          from: { name: "Barangay Valdefuente", email: "barangay.valdefuente@gmail.com" },
+          subject: "Registration Approved",
+          html: `
+            <p>Dear <strong>${resident.firstName}</strong>,</p>
+            <p>Your registration has been <strong>approved</strong>.</p>
+            <p><strong>Username:</strong> ${resident.username}</p>
+            <p><strong>Password:</strong> ${resident.password}</p>
+            <p>You may now access barangay services using your account.</p>
+            <p>Thank you.</p>
+          `,
+        };
+        sgMail.send(msg).catch(console.error);
+      }
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
 
 app.get("/updateRsd/:id", isLogin, async (req, res) => {
     try {
@@ -6065,99 +6247,136 @@ app.post("/add-member2", async (req, res) => {
 });
 
 app.post("/add-memberR", async (req, res) => {
-    try {
-        const residents = db.collection("resident");
+  try {
+    const {
+      firstName, middleName, lastName, extName, position, houseNo, purok, role,
+      priority, priorityType, bDay, bMonth, bYear, birthPlace, gender,
+      civilStatus, precinct, phone, email, headId, soloParent, pwd, indigent
+    } = req.body;
 
-        const {
-            firstName, middleName, lastName, extName, birthPlace,
-            bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email,
-            soloParent, pwd, pwdType, employmentStatus, work, monthlyIncome, position,
-            birthHeight, birthWeight, healthCenter, rel, nationality, religion, education, houseNo, purok, headId
-        } = req.body;
-
-        // Calculate age
-        const birthDate = new Date(`${bYear}-${bMonth}-${bDay}`);
-        const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        if (today.getMonth() < birthDate.getMonth() ||
-            (today.getMonth() === birthDate.getMonth() && today.getDate() < birthDate.getDate())) age--;
-
-        // Generate username & password only if age is between 15-59
-        let username = null;
-        let password = null;
-        if (age >= 15 && age <= 59) {
-            username = generateUsername(firstName, middleName, lastName, bDay, bYear);
-            password = generateRandomPassword();
-        }
-
-        // Determine access level
-        const privilegedPositions = ["Barangay Secretary", "Punong Barangay", "Barangay Worker", "BWDO", "Barangay Clerk"];
-        const access = privilegedPositions.includes(position) ? 1 : 0;
-
-        const income = monthlyIncome ? parseFloat(monthlyIncome) : 0;
-
-        // Insert the new resident
-        const newResident = {
-            firstName, middleName, lastName, extName, birthPlace,
-            bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email,
-            soloParent, pwd, pwdType, employmentStatus, work, monthlyIncome: income, position,
-            birthHeight, birthWeight, healthCenter, rel, nationality, religion, education, houseNo, purok,
-            archive: 1,
-            reset: 0,
-            verify: 1,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            successAt: null,
-            username,
-            password,
-            role: "Member",
-            access,
-        };
-
-        await residents.insertOne(newResident);
-
-        // Redirect immediately
-        res.redirect("/regSuccess");
-
-        // Send email in background
-        (async () => {
-            try {
-                let recipientEmail = email;
-
-                if (!recipientEmail && headId) {
-                    const headResident = await db.collection("resident").findOne({ _id: new ObjectId(headId) });
-                    if (headResident && headResident.email) recipientEmail = headResident.email;
-                }
-
-                if (recipientEmail) {
-                    const emailHTML = `
-                <p style="font-size: 18px; text-align: center;">Your registration has been submitted successfully!</p>
-                <div style="font-size: 14px; text-align: center; font-weight: 500;">
-                    The Barangay Secretary will verify your details within 24 hours on business days and will notify you via email regarding its status. Weekends are excluded.
-                </div>
-            `;
-
-                    const sendSmtpEmail = {
-                        sender: { name: "Barangay System", email: "jerseyjimenez10@gmail.com" },
-                        to: [{ email: recipientEmail }],
-                        subject: "Account Registration",
-                        htmlContent: emailHTML
-                    };
-
-                    brevoClient.sendTransacEmail(sendSmtpEmail)
-                        .then(() => console.log(`✅ Registration email sent to ${recipientEmail}`))
-                        .catch(err => console.error("❌ Error sending registration email via Brevo:", err.message));
-                }
-            } catch (err) {
-                console.error("❌ Error preparing registration email:", err);
-            }
-        })();
-
-
-    } catch (error) {
-        console.error("Error adding resident:", error);
-        res.status(500).send('<script>alert("Error adding resident"); window.location="/";</script>');
+    // Validation
+    if (!firstName || !lastName || !houseNo || !purok || !role) {
+      return res.send('<script>alert("Please fill out all required fields!"); window.location="/rsd";</script>');
     }
+
+    // Calculate age
+    const birthDate = new Date(`${bYear}-${bMonth}-${bDay}`);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
+    let username = null;
+    let password = null;
+    let shouldSendEmail = true;
+
+    const officialPositions = [
+      "Punong Barangay", "Barangay Kagawad", "Barangay Secretary",
+      "Barangay Treasurer", "Barangay BHW", "Barangay BIC",
+      "Barangay BNS", "Barangay BPO", "Barangay Clerk", "Barangay Worker"
+    ];
+
+    const access = officialPositions.includes(position) ? 1 : 0;
+
+    // Generate username and password if age > 15
+    if (age > 15) {
+      const generateRandomPassword = () => {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
+        let password = "";
+        for (let i = 0; i < 12; i++) {
+          password += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return password;
+      };
+
+      password = generateRandomPassword();
+
+      const generateUsername = (firstName, middleName, lastName, bDay, bYear) => {
+        const firstPart = firstName.charAt(0).toLowerCase() + firstName.slice(-1).toLowerCase();
+        let middlePart = "";
+        if (middleName) {
+          middlePart = middleName.charAt(0).toLowerCase() + middleName.slice(-1).toLowerCase();
+        } else {
+          middlePart = lastName.charAt(0).toLowerCase() + lastName.slice(-1).toLowerCase();
+        }
+        const lastNameLower = lastName.toLowerCase();
+        return `${firstPart}${middlePart}.${lastNameLower}${bDay.padStart(2, "0")}${bYear.slice(-2)}`;
+      };
+
+      username = generateUsername(firstName, middleName, lastName, bDay, bYear);
+    } else {
+      shouldSendEmail = false;
+    }
+
+    // Handle indigent flag
+    const isChecked = (value) => (value ? "YES" : "");
+    let finalIndigent = isChecked(indigent);
+
+    if (role === "Member" && headId) {
+      const headResident = await db.collection("resident").findOne({ _id: new ObjectId(headId) });
+      if (headResident && headResident.indigent === "YES") {
+        finalIndigent = "YES";
+      }
+    }
+
+    // New resident document
+    const newResident = {
+      firstName, middleName, lastName, extName, position, houseNo, purok, role,
+      priority, priorityType, bDay, bMonth, bYear, birthPlace, gender,
+      civilStatus, precinct, phone, email, username, password,
+      access,
+      archive: 0, headId,
+      soloParent: isChecked(soloParent),
+      pwd: isChecked(pwd),
+      indigent: finalIndigent,
+      createdAt: new Date(),
+      updatedAt: null
+    };
+
+    await db.collection("resident").insertOne(newResident);
+
+    // ✅ Send email via SendGrid
+    if (shouldSendEmail) {
+      let recipientEmail = email;
+
+      if (!email && headId) {
+        const headResident = await db.collection("resident").findOne({ _id: new ObjectId(headId) });
+        if (headResident && headResident.email) {
+          recipientEmail = headResident.email;
+        }
+      }
+
+      if (recipientEmail) {
+        try {
+          const msg = {
+            to: recipientEmail,
+            from: { email: "barangay.valdefuente@gmail.com", name: "Barangay System" },
+            subject: "Your Resident Account Details",
+            html: `
+              <p>Dear <strong>${firstName}</strong>,</p>
+              <p>Your resident account has been created successfully.</p>
+              <p><strong>Username:</strong> ${username}</p>
+              <p><strong>Password:</strong> ${password}</p>
+              <p>Please keep your credentials secure.</p>
+              <p>Thank you,<br>Barangay Valdefuente</p>
+            `,
+          };
+
+          await sgMail.send(msg);
+          console.log(`✅ SendGrid email sent to ${recipientEmail}`);
+        } catch (error) {
+          console.error(`❌ Failed to send email to ${recipientEmail}:`, error.message);
+        }
+      }
+    }
+
+    res.send('<script>alert("Resident added successfully!"); window.location="/rsd";</script>');
+  } catch (err) {
+    console.error("❌ Error adding resident:", err.message);
+    res.status(500).send('<script>alert("Internal Server Error! Please try again."); window.location="/rsd";</script>');
+  }
 });
 
 
