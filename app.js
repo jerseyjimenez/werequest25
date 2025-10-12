@@ -810,13 +810,6 @@ app.get("/ann", isLogin, async (req, res) => {
         res.status(500).send("Internal Server Error");
     }
 });
-// Make sure these imports are at the top of your file
-const dotenv = require("dotenv");
-const sgMail = require("@sendgrid/mail");
-
-dotenv.config(); // Load .env file
-
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 app.post("/newAnn", upload.single("image"), async (req, res) => {
   try {
