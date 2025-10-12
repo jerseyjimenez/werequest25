@@ -6327,7 +6327,7 @@ app.post("/add-memberR", async (req, res) => {
       priority, priorityType, bDay, bMonth, bYear, birthPlace, gender,
       civilStatus, precinct, phone, email, username, password,
       access,
-      archive: 0, headId,
+      archive: 1, headId, verify: 1,
       soloParent: isChecked(soloParent),
       pwd: isChecked(pwd),
       indigent: finalIndigent,
