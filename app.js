@@ -15,7 +15,6 @@ const nodemailer = require('nodemailer');
 const SibApiV3Sdk = require("@sendinblue/client");
 const sgMail = require("@sendgrid/mail");
 
-dotenv.config();
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
