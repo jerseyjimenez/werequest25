@@ -13,6 +13,11 @@ const ExcelJS = require("exceljs");
 const PDFDocument = require("pdfkit");
 const nodemailer = require('nodemailer');
 const SibApiV3Sdk = require("@sendinblue/client");
+const sgMail = require("@sendgrid/mail");
+
+dotenv.config();
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const brevoClient = new SibApiV3Sdk.TransactionalEmailsApi();
 
@@ -805,59 +810,88 @@ app.get("/ann", isLogin, async (req, res) => {
         res.status(500).send("Internal Server Error");
     }
 });
+// Make sure these imports are at the top of your file
+const dotenv = require("dotenv");
+const sgMail = require("@sendgrid/mail");
+
+dotenv.config(); // Load .env file
+
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
 app.post("/newAnn", upload.single("image"), async (req, res) => {
-    try {
-        const { title, description } = req.body;
-        const postBy = req.session.userId;
-        const imagePath = req.file ? req.file.path : null;
+  try {
+    const { title, description } = req.body;
+    const postBy = req.session.userId;
+    const imagePath = req.file ? req.file.path : null;
 
-        if (!title || !description) {
-            return res.send('<script>alert("Title and Description are required!"); window.location="/ann";</script>');
-        }
-
-        const newAnnouncement = {
-            title,
-            description,
-            postBy,
-            image: imagePath,
-            createdAt: new Date(),
-        };
-
-        await db.collection("announcements").insertOne(newAnnouncement);
-
-        const residents = await db.collection("resident")
-            .find({ email: { $exists: true, $ne: null } })
-            .toArray();
-
-        // Send emails via Brevo
-        const emailPromises = residents.map(async (resident) => {
-            try {
-                await brevo.sendTransacEmail({
-                    sender: { email: "jerseyjimenez10@gmail.com", name: "Barangay System" },
-                    to: [{ email: resident.email }],
-                    subject: `New Announcement: ${title}`,
-                    htmlContent: `
-            <p>Dear Resident,</p>
-            <p>We have a new announcement:</p>
-            <p><strong>Title:</strong> ${title}</p>
-            <p><strong>Description:</strong> ${description}</p>
-            ${imagePath ? `<p><img src="${imagePath}" alt="Announcement Image" style="max-width:100%;"></p>` : ""}
-            <p>Thank you.</p>
-          `,
-                });
-                console.log(`✅ Email sent to: ${resident.email}`);
-            } catch (error) {
-                console.error(`❌ Failed to send email to ${resident.email}:`, error.message);
-            }
-        });
-
-        await Promise.all(emailPromises);
-
-        res.send('<script>alert("Announcement added successfully and sent to all residents!"); window.location="/ann";</script>');
-    } catch (err) {
-        console.error("❌ Error adding announcement:", err);
-        res.status(500).send('<script>alert("Internal Server Error!"); window.location="/ann";</script>');
+    if (!title || !description) {
+      return res.send(
+        '<script>alert("Title and Description are required!"); window.location="/ann";</script>'
+      );
     }
+
+    const newAnnouncement = {
+      title,
+      description,
+      postBy,
+      image: imagePath,
+      createdAt: new Date(),
+    };
+
+    // Save announcement to DB
+    await db.collection("announcements").insertOne(newAnnouncement);
+
+    // Get residents with email
+    const residents = await db
+      .collection("resident")
+      .find({ email: { $exists: true, $ne: null } })
+      .toArray();
+
+    // Send emails via SendGrid
+    const emailPromises = residents.map(async (resident) => {
+      const msg = {
+        to: resident.email,
+        from: {
+          email: "jerseyjimenez10@gmail.com", // ⚠️ Must be verified sender in SendGrid
+          name: "Barangay System",
+        },
+        subject: `New Announcement: ${title}`,
+        html: `
+          <p>Dear Resident,</p>
+          <p>We have a new announcement:</p>
+          <p><strong>Title:</strong> ${title}</p>
+          <p><strong>Description:</strong> ${description}</p>
+          ${
+            imagePath
+              ? `<p><img src="${imagePath}" alt="Announcement Image" style="max-width:100%;"></p>`
+              : ""
+          }
+          <p>Thank you.</p>
+        `,
+      };
+
+      try {
+        await sgMail.send(msg);
+        console.log(`✅ Email sent to: ${resident.email}`);
+      } catch (error) {
+        console.error(`❌ Failed to send email to ${resident.email}:`, error.message);
+        if (error.response) console.error(error.response.body);
+      }
+    });
+
+    await Promise.all(emailPromises);
+
+    res.send(
+      '<script>alert("Announcement added successfully and sent to all residents!"); window.location="/ann";</script>'
+    );
+  } catch (err) {
+    console.error("❌ Error adding announcement:", err);
+    res
+      .status(500)
+      .send(
+        '<script>alert("Internal Server Error!"); window.location="/ann";</script>'
+      );
+  }
 });
 
 app.post("/editAnn/:id", isLogin, upload.single("image"), async (req, res) => {
