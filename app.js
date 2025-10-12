@@ -6255,8 +6255,8 @@ app.post("/add-memberR", async (req, res) => {
     } = req.body;
 
     // Validation
-    if (!firstName || !lastName || !houseNo || !purok || !role) {
-      return res.send('<script>alert("Please fill out all required fields!"); window.location="/rsd";</script>');
+    if (!firstName) {
+      return res.send('<script>alert("Please fill out all required fields!"); window.location="/";</script>');
     }
 
     // Calculate age
