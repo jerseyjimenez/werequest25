@@ -6372,10 +6372,10 @@ app.post("/add-memberR", async (req, res) => {
       }
     }
 
-    res.send('<script>alert("Resident added successfully!"); window.location="/rsd";</script>');
+    res.send('<script>alert("Resident added successfully!"); window.location="/";</script>');
   } catch (err) {
     console.error("❌ Error adding resident:", err.message);
-    res.status(500).send('<script>alert("Internal Server Error! Please try again."); window.location="/rsd";</script>');
+    res.status(500).send('<script>alert("Internal Server Error! Please try again."); window.location="/";</script>');
   }
 });
 
