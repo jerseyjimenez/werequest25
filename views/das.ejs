@@ -83,41 +83,54 @@
         <button href="" class="nav white orgBtn" id="exportExcel">Export Report</button>
       </div>
     </div>
-    <script>
-      document.getElementById("exportExcel").addEventListener("click", () => {
-        const table = document.getElementById("requestTable");
-        const wb = XLSX.utils.book_new();
+<script>
+document.getElementById("exportExcel").addEventListener("click", async () => {
+  const table = document.getElementById("requestTable");
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Requests");
 
-        // Step 1: Convert table directly to sheet
-        const ws = XLSX.utils.table_to_sheet(table);
+  // --- Add Logo ---
+  const imgUrl = "logo.png"; // Path or URL of your logo image
+  const response = await fetch(imgUrl);
+  const buffer = await response.arrayBuffer();
 
-        // Step 2: Extract table as array of arrays
-        const tableData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+  const imageId = workbook.addImage({
+    buffer: buffer,
+    extension: "png", // or jpg
+  });
 
-        // Step 3: Custom header rows
-        const header = [
-          ["Master List of Document Request"], // Row 1
-          ["Barangay San Andres, Guimba"],     // Row 2
-          [""],                                // Row 3 (blank)
-        ];
+  // Add image on the top
+  worksheet.addImage(imageId, {
+    tl: { col: 0, row: 0 },
+    ext: { width: 120, height: 120 } // size in pixels
+  });
 
-        // Step 4: Build new worksheet with header first
-        const newWs = XLSX.utils.aoa_to_sheet(header);
+  // --- Add Header Text ---
+  worksheet.mergeCells("A6:E6");
+  worksheet.getCell("A6").value = "Master List of Document Request";
+  worksheet.getCell("A6").font = { size: 16, bold: true };
+  worksheet.getCell("A6").alignment = { horizontal: "center" };
 
-        // Step 5: Append table data starting from row 4
-        XLSX.utils.sheet_add_aoa(newWs, tableData, { origin: "A4" });
+  worksheet.mergeCells("A7:E7");
+  worksheet.getCell("A7").value = "Barangay San Andres, Guimba";
+  worksheet.getCell("A7").alignment = { horizontal: "center" };
 
-        // Step 6: Merge header rows across all columns
-        if (!newWs["!merges"]) newWs["!merges"] = [];
-        const colCount = table.rows[0].cells.length; // total columns
-        newWs["!merges"].push({ s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } }); // merge row 1
-        newWs["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: colCount - 1 } }); // merge row 2
+  // --- Convert table to array ---
+  const rows = [];
+  const tableRows = table.querySelectorAll("tr");
+  tableRows.forEach((tr) => {
+    const row = [];
+    tr.querySelectorAll("th, td").forEach((td) => row.push(td.innerText));
+    rows.push(row);
+  });
 
-        // Step 7: Save as Excel
-        XLSX.utils.book_append_sheet(wb, newWs, "Requests");
-        XLSX.writeFile(wb, "Request_List.xlsx");
-      });
-    </script>
+  worksheet.addRows([[], [], ...rows]); // start a few rows below header
+
+  // --- Save the file ---
+  const bufferOut = await workbook.xlsx.writeBuffer();
+  saveAs(new Blob([bufferOut]), "Request_List.xlsx");
+});
+</script>
 
 
     <div class="height0 gap30 padding30">
