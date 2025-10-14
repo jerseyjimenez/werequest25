@@ -768,6 +768,71 @@ app.get("/ann", isLogin, async (req, res) => {
         const announcements = await db.collection("announcements").aggregate([
             // Convert postBy to ObjectId if it’s a string
             {
+                $match: {
+                $or: [
+                    { archive: { $exists: false } }, // if field missing
+                    { archive: "0" },
+                    { archive: 0 },
+                ],
+                },
+            },
+            {
+                $addFields: {
+                    postByObj: {
+                        $cond: [
+                            { $eq: [{ $type: "$postBy" }, "string"] }, // if type is string
+                            { $toObjectId: "$postBy" },                // convert to ObjectId
+                            "$postBy"                                  // else keep as is
+                        ]
+                    }
+                }
+            },
+            // Lookup resident details
+            {
+                $lookup: {
+                    from: "resident",
+                    localField: "postByObj",
+                    foreignField: "_id",
+                    as: "residentDetails"
+                }
+            },
+            // Flatten result but keep announcements even without resident
+            {
+                $unwind: {
+                    path: "$residentDetails",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            // Sort by newest
+            { $sort: { createdAt: -1 } },
+
+        ]).toArray();
+
+        res.render("ann", {
+            layout: "layout",
+            title: "Announcements",
+            activePage: "ann",
+            announcements
+        });
+    } catch (err) {
+        console.error("❌ Error fetching announcements:", err.message);
+        res.status(500).send("Internal Server Error");
+    }
+});
+
+app.get("/annArc", isLogin, async (req, res) => {
+    try {
+        const announcements = await db.collection("announcements").aggregate([
+            {
+                $match: {
+                $or: [
+                    { archive: { $exists: false } }, // if field missing
+                    { archive: "1" },
+                    { archive: 1 },
+                ],
+                },
+            },
+            {
                 $addFields: {
                     postByObj: {
                         $cond: [
@@ -798,7 +863,7 @@ app.get("/ann", isLogin, async (req, res) => {
             { $sort: { createdAt: -1 } }
         ]).toArray();
 
-        res.render("ann", {
+        res.render("annArc", {
             layout: "layout",
             title: "Announcements",
             activePage: "ann",
@@ -828,6 +893,7 @@ app.post("/newAnn", upload.single("image"), async (req, res) => {
       postBy,
       image: imagePath,
       createdAt: new Date(),
+      archive: 0
     };
 
     // Save announcement to DB
@@ -956,16 +1022,25 @@ app.post("/editAnn/:id", isLogin, upload.single("image"), async (req, res) => {
 
 // Delete an announcement
 app.post("/deleteAnn/:id", async (req, res) => {
-    try {
-        // Delete the announcement from the database using ObjectId
-        await db.collection("announcements").deleteOne({ _id: new ObjectId(req.params.id) });
+  try {
+    const announcementId = new ObjectId(req.params.id);
 
-        // Redirect to the announcements page after deletion
-        res.redirect("/ann");
-    } catch (err) {
-        console.error("❌ Error deleting announcement:", err.message);
-        res.status(500).send('<script>alert("Internal Server Error!"); window.location="/ann";</script>');
-    }
+    // ✅ Update archive field instead of deleting
+    await db.collection("announcements").updateOne(
+      { _id: announcementId },
+      { $set: { archive: "1" } }
+    );
+
+    // ✅ Redirect back to announcements
+    res.redirect("/ann");
+  } catch (err) {
+    console.error("❌ Error archiving announcement:", err.message);
+    res
+      .status(500)
+      .send(
+        '<script>alert("Internal Server Error!"); window.location="/ann";</script>'
+      );
+  }
 });
 
 app.post("/add-resident", async (req, res) => {
@@ -2348,6 +2423,104 @@ app.get("/bss", isLogin, isRsd, async (req, res) => {
         res.status(500).send('<script>alert("Internal Server Error! Please try again."); window.location="/";</script>');
     }
 });
+
+app.get("/busArc", isLogin, isRsd, async (req, res) => {
+    try {
+        const residents = await db.collection("resident")
+            .find({ archive: { $in: [0, "0", 1, "1"] } })
+            .sort({ firstName: 1 })
+            .toArray();
+
+        const households = await db.collection("household")
+            .find({ archive: { $in: [0, "0"] } })
+            .toArray();
+
+        const families = await db.collection("family")
+            .find({ archive: { $in: [0, "0"] } })
+            .toArray();
+
+        // Map household and family data
+        const householdMap = new Map();
+        households.forEach(household => {
+            householdMap.set(String(household._id), { houseNo: household.houseNo, purok: household.purok });
+        });
+
+        const familyMap = new Map();
+        families.forEach(family => {
+            familyMap.set(String(family._id), { poverty: family.poverty });
+        });
+
+        // Attach household & family info to residents
+        residents.forEach(resident => {
+            const householdData = householdMap.get(String(resident.householdId)) || { houseNo: "-", purok: "-" };
+            resident.houseNo = householdData.houseNo;
+            resident.purok = householdData.purok;
+
+            const familyData = familyMap.get(String(resident.familyId)) || { poverty: "No Income" };
+            resident.familyPoverty = familyData.poverty;
+        });
+
+        // Totals
+        const totalHouseholds = households.length;
+        const totalFamilies = families.length;
+        const totalInhabitants = residents.length;
+        const totalVoters = residents.filter(r => r.precinct === "Registered Voter").length;
+
+        // Businesses
+        const businesses = await db.collection("business")
+            .find({ archive: { $in: [1, "1"] } })
+            .sort({ businessName: 1 })
+            .toArray();
+
+        // Map owner info
+        const residentMap = new Map();
+        residents.forEach(resident => residentMap.set(String(resident._id), resident));
+
+        businesses.forEach(business => {
+            const owner = residentMap.get(String(business.ownerName));
+            if (owner) {
+                business.owner = {
+                    _id: owner._id,
+                    firstName: owner.firstName,
+                    lastName: owner.lastName,
+                    phone: owner.phone,
+                    purok: owner.purok,
+                    houseNo: owner.houseNo,
+                    familyPoverty: owner.familyPoverty
+                };
+            } else {
+                business.owner = null;
+            }
+
+            // Safe estDate for EJS
+            business.estDateISO = business.estDate && !isNaN(new Date(business.estDate))
+                ? new Date(business.estDate).toISOString().split("T")[0]
+                : "";
+        });
+
+        const totalCount = businesses.length;
+
+        // Render
+        res.render("busArc", {
+            layout: "layout",
+            title: "Business",
+            activePage: "bss",
+            residents,
+            totalHouseholds,
+            totalFamilies,
+            totalInhabitants,
+            totalVoters,
+            totalCount,
+            businesses,  // always defined
+            message: businesses.length === 0 ? "No active businesses found." : null
+        });
+
+    } catch (err) {
+        console.error("Error fetching businesses:", err.message);
+        res.status(500).send('<script>alert("Internal Server Error! Please try again."); window.location="/";</script>');
+    }
+});
+
 
 app.post("/update-business/:id", isLogin, async (req, res) => {
     try {
@@ -4892,6 +5065,72 @@ app.get("/blot", isLogin, isRsd, isHr, async (req, res) => {
 
         // Render the 'cmp' view with all data
         res.render("blot", {
+            layout: "layout",
+            title: "Complaints",
+            activePage: "blot",
+            cases,
+            complainantsByCase,
+            respondentsByCase,
+            schedulesByCase
+        });
+    } catch (error) {
+        console.error("Error fetching cases:", error);
+        res.status(500).send("An error occurred while retrieving cases.");
+    }
+});
+
+app.get("/blotArc", isLogin, isRsd, isHr, async (req, res) => {
+    try {
+        // Fetch all cases, ordered by createdAt (latest first)
+        const cases = await db.collection("cases")
+            .find({ archive: { $in: ["1", 1] } }) // Filters only archive: 0
+            .sort({ createdAt: -1 })
+            .toArray();
+
+        // Extract resident IDs from cases (complainants and respondents)
+        const residentIds = cases.flatMap(c => [...c.complainants, ...c.respondents])
+            .filter(id => id) // Remove empty or undefined values
+            .map(id => ObjectId.isValid(id) ? new ObjectId(id) : id);
+
+        console.log("Resident IDs for lookup:", residentIds); // Debugging log
+
+        // Fetch residents using `_id` (Check both ObjectId and String formats)
+        const residentsData = await db.collection("resident").find({
+            _id: { $in: residentIds }
+        }).toArray();
+
+        console.log("Residents found:", residentsData); // Debugging log
+
+        // Map resident IDs to full names
+        const residentsMap = {};
+        residentsData.forEach(resident => {
+            const residentIdStr = resident._id.toString(); // Convert `_id` to string
+            residentsMap[residentIdStr] = `${resident.firstName} ${resident.middleName || ''} ${resident.lastName} ${resident.extName || ''}`.trim();
+        });
+
+        console.log("Residents Map:", residentsMap); // Debugging log
+
+        // Organize complainants and respondents by caseId
+        const complainantsByCase = {};
+        const respondentsByCase = {};
+        cases.forEach(c => {
+            complainantsByCase[c._id] = c.complainants.map(id => residentsMap[id] || "Unknown");
+            respondentsByCase[c._id] = c.respondents.map(id => residentsMap[id] || "Unknown");
+        });
+
+        console.log("Final Complainants by Case:", complainantsByCase); // Debugging log
+        console.log("Final Respondents by Case:", respondentsByCase); // Debugging log
+
+        // Fetch all schedules and group them by caseId
+        const schedules = await db.collection("schedule").find().toArray();
+        const schedulesByCase = {};
+        schedules.forEach(s => {
+            if (!schedulesByCase[s.caseId]) schedulesByCase[s.caseId] = [];
+            schedulesByCase[s.caseId].push(s);
+        });
+
+        // Render the 'cmp' view with all data
+        res.render("blotArc", {
             layout: "layout",
             title: "Complaints",
             activePage: "blot",

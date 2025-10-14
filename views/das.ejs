@@ -1,6 +1,8 @@
 <% layout('layout') %>
 
   <head>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
     <style>
       .mainf {
         padding: 0;
@@ -80,55 +82,91 @@
       <div class="height0 gap10 alignEnd absolute translateX left0 bottom0">
       </div>
       <div class="height0 gap5 justifyEnd">
-        <button href="" class="nav white orgBtn" id="exportExcel">Export Report</button>
+        <button class="nav white orgBtn" id="exportExcel">Export Report</button>
       </div>
-    </div>
-<script>
-document.getElementById("exportExcel").addEventListener("click", async () => {
-  const table = document.getElementById("requestTable");
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet("Requests");
+    </div><script>
+window.addEventListener("load", () => {
+  const exportBtn = document.getElementById("exportExcel");
 
-  // --- Add Logo ---
-  const imgUrl = "logo.png"; // Path or URL of your logo image
-  const response = await fetch(imgUrl);
-  const buffer = await response.arrayBuffer();
+  exportBtn.addEventListener("click", async () => {
+    const table = document.getElementById("requestTable");
+    if (!table) {
+      alert("⚠️ Table not found!");
+      return;
+    }
 
-  const imageId = workbook.addImage({
-    buffer: buffer,
-    extension: "png", // or jpg
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Requests");
+
+    // === Function: Convert image to Base64 ===
+    async function getBase64Image(url) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Image not found or blocked");
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(",")[1]); // remove "data:image/...;base64,"
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    // === Add Logo (centered above header) ===
+    try {
+      const base64 = await getBase64Image("/images/logo.png"); // must exist in /public/images/
+      const imageId = workbook.addImage({
+        base64: base64,
+        extension: "png",
+      });
+
+      // Place image roughly centered across A–E
+      worksheet.addImage(imageId, {
+        tl: { col: 0, row: 0 }, // move right a bit
+        ext: { width: 100, height: 100 },
+      });
+    } catch (err) {
+      console.error("⚠️ Failed to load logo:", err);
+    }
+
+    // === Add Header Text ===
+    worksheet.mergeCells("A6:E6");
+    worksheet.getCell("A6").value = "Master List of Document Request";
+    worksheet.getCell("A6").font = { size: 16, bold: true };
+    worksheet.getCell("A6").alignment = { horizontal: "left", vertical: "middle" };
+
+    worksheet.mergeCells("A7:E7");
+    worksheet.getCell("A7").value = "Barangay San Andres, Guimba";
+    worksheet.getCell("A7").font = { size: 13, italic: true };
+    worksheet.getCell("A7").alignment = { horizontal: "left", vertical: "middle" };
+
+    // === Space before table ===
+    worksheet.addRow([]);
+    worksheet.addRow([]);
+
+    // === Add Table Data ===
+    const rows = [];
+    const tableRows = table.querySelectorAll("tr");
+    tableRows.forEach((tr) => {
+      const row = [];
+      tr.querySelectorAll("th, td").forEach((td) => row.push(td.innerText.trim()));
+      rows.push(row);
+    });
+
+    worksheet.addRows(rows);
+
+    // === Auto fit columns ===
+    worksheet.columns.forEach((column) => {
+      let maxLength = 0;
+      column.eachCell({ includeEmpty: true }, (cell) => {
+        const cellValue = cell.value ? cell.value.toString() : "";
+        maxLength = Math.max(maxLength, cellValue.length);
+      });
+      column.width = maxLength;
+    });
+
+    // === Save file ===
+    const bufferOut = await workbook.xlsx.writeBuffer();
+    saveAs(new Blob([bufferOut]), "Request_List.xlsx");
   });
-
-  // Add image on the top
-  worksheet.addImage(imageId, {
-    tl: { col: 0, row: 0 },
-    ext: { width: 120, height: 120 } // size in pixels
-  });
-
-  // --- Add Header Text ---
-  worksheet.mergeCells("A6:E6");
-  worksheet.getCell("A6").value = "Master List of Document Request";
-  worksheet.getCell("A6").font = { size: 16, bold: true };
-  worksheet.getCell("A6").alignment = { horizontal: "center" };
-
-  worksheet.mergeCells("A7:E7");
-  worksheet.getCell("A7").value = "Barangay San Andres, Guimba";
-  worksheet.getCell("A7").alignment = { horizontal: "center" };
-
-  // --- Convert table to array ---
-  const rows = [];
-  const tableRows = table.querySelectorAll("tr");
-  tableRows.forEach((tr) => {
-    const row = [];
-    tr.querySelectorAll("th, td").forEach((td) => row.push(td.innerText));
-    rows.push(row);
-  });
-
-  worksheet.addRows([[], [], ...rows]); // start a few rows below header
-
-  // --- Save the file ---
-  const bufferOut = await workbook.xlsx.writeBuffer();
-  saveAs(new Blob([bufferOut]), "Request_List.xlsx");
 });
 </script>
 
