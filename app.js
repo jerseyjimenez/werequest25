@@ -237,7 +237,7 @@ const transporter = nodemailer.createTransport({
     port: 465,
     secure: true,
     auth: {
-        user: 'wilyn.sabatinasuncion@gmail.com',
+        user: 'wilynsasuncion@gmail.com',
         pass: 'kgaquwmapdezixat',
     },
     tls: {
@@ -910,7 +910,7 @@ app.post("/newAnn", upload.single("image"), async (req, res) => {
       const msg = {
         to: resident.email,
         from: {
-          email: "jerseyjimenez10@gmail.com", // ⚠️ Must be verified sender in SendGrid
+          email: "wilynsasuncion@gmail.com", // ⚠️ Must be verified sender in SendGrid
           name: "Barangay System",
         },
         subject: `New Announcement: ${title}`,
@@ -1146,7 +1146,7 @@ app.post("/add-resident", async (req, res) => {
         const msg = {
           to: recipientEmail,
           from: {
-            email: "jerseyjimenez10@gmail.com", // ⚠️ must be verified in SendGrid
+            email: "wilynsasuncion@gmail.com", // ⚠️ must be verified in SendGrid
             name: "Barangay System",
           },
           subject: "Your Resident Account Details",
@@ -1988,7 +1988,7 @@ app.post("/reset-resident/:id", async (req, res) => {
       if (emailToSend) {
         const msg = {
           to: emailToSend,
-          from: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+          from: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
           subject: "Password Reset",
           html: `
             <p>Dear Resident,</p>
@@ -2036,7 +2036,7 @@ app.post("/suspend-resident/:id", async (req, res) => {
       if (resident.email) {
         const msg = {
           to: resident.email,
-          from: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+          from: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
           subject: "Account Suspension Notification",
           html: `
             <p>Dear <strong>${resident.firstName}</strong>,</p>
@@ -3196,7 +3196,7 @@ app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
         res.redirect("/reqSuccess");
         if (resident?.email) {
             const sendSmtpEmail = {
-                sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+                sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
                 to: [{ email: resident.email }],
                 subject: "Document Request Submitted Successfully",
                 htmlContent: `
@@ -3304,7 +3304,7 @@ app.post("/reqDocumentA", isLogin, upload.array("proof[]"), async (req, res) => 
         // Send email notification asynchronously after redirect
         if (resident?.email) {
             const sendSmtpEmail = {
-                sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+                sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
                 to: [{ email: resident.email }],
                 subject: "Document Request Submitted Successfully",
                 htmlContent: `
@@ -3998,7 +3998,7 @@ app.post("/yesDoc/:id", async (req, res) => {
         }
 
         const sendSmtpEmail = {
-            sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+            sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
             to: [{ email: emailRecipient }],
             subject: "Request Status Update - Approved",
             htmlContent: emailHTML,
@@ -4055,7 +4055,7 @@ app.post("/verDoc/:id", async (req, res) => {
         }
 
         const sendSmtpEmail = {
-            sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+            sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
             to: [{ email: emailRecipient }],
             subject: "Request Status Update - Verified",
             htmlContent: emailHTML,
@@ -4116,7 +4116,7 @@ app.post("/noDoc/:id", async (req, res) => {
         }
 
         const sendSmtpEmail = {
-            sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+            sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
             to: [{ email: emailRecipient }],
             subject: "Request Status Update - Declined",
             htmlContent: emailHTML,
@@ -4175,7 +4175,7 @@ app.post("/release/:id", async (req, res) => {
     `;
 
             const sendSmtpEmail = {
-                sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+                sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
                 to: [{ email: resident.email }],
                 subject: "Your Document has been released",
                 htmlContent: emailHTML,
@@ -4236,7 +4236,7 @@ app.post("/cancel/:id", async (req, res) => {
     `;
 
             const sendSmtpEmail = {
-                sender: { name: "Barangay San Andres", email: "jerseyjimenez10@gmail.com" },
+                sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
                 to: [{ email: resident.email }],
                 subject: "Request Cancelled",
                 htmlContent: emailHTML,
@@ -5649,7 +5649,7 @@ app.post("/forgotX", async (req, res) => {
         `;
 
         const sendSmtpEmail = {
-            sender: { name: "Barangay System", email: "jerseyjimenez10@gmail.com" },
+            sender: { name: "Barangay System", email: "wilynsasuncion@gmail.com" },
             to: [{ email: emailToSend }],
             subject: "Password Reset Request",
             htmlContent: emailHTML,
@@ -6403,7 +6403,7 @@ app.post("/add-member", async (req, res) => {
             `;
 
                     const sendSmtpEmail = {
-                        sender: { name: "Barangay System", email: "jerseyjimenez10@gmail.com" },
+                        sender: { name: "Barangay System", email: "wilynsasuncion@gmail.com" },
                         to: [{ email: recipientEmail }],
                         subject: "Your Resident Account Details",
                         htmlContent: emailHTML,
