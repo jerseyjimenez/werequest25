@@ -18,12 +18,6 @@ const sgMail = require("@sendgrid/mail");
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const brevoClient = new SibApiV3Sdk.TransactionalEmailsApi();
-
-brevoClient.setApiKey(
-    SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
-    process.env.BREVO_API_KEY
-);
 
 const SECRET_KEY = "6LflzO4qAAAAAF4n0ABQ2YyHGPSA3RDjvtvFt1AQ";
 
@@ -1146,7 +1140,7 @@ app.post("/add-resident", async (req, res) => {
         const msg = {
           to: recipientEmail,
           from: {
-            email: "wilynsasuncion@gmail.com", // ⚠️ must be verified in SendGrid
+            email: "wilynsasuncion@gmail.com",
             name: "Barangay System",
           },
           subject: "Your Resident Account Details",
@@ -2079,7 +2073,7 @@ app.post("/decline-reg/:id", async (req, res) => {
       if (resident.email) {
         const msg = {
           to: resident.email,
-          from: { name: "Barangay Valdefuente", email: "barangay.valdefuente@gmail.com" },
+          from: { name: "Barangay Valdefuente", email: "wilynsasuncion@gmail.com" },
           subject: "Registration Declined",
           html: `
             <p>Dear <strong>${resident.firstName}</strong>,</p>
@@ -2120,7 +2114,7 @@ app.post("/approve-reg/:id", async (req, res) => {
       if (resident.email) {
         const msg = {
           to: resident.email,
-          from: { name: "Barangay Valdefuente", email: "barangay.valdefuente@gmail.com" },
+          from: { name: "Barangay Valdefuente", email: "wilynsasuncion@gmail.com" },
           subject: "Registration Approved",
           html: `
             <p>Dear <strong>${resident.firstName}</strong>,</p>
@@ -6591,7 +6585,7 @@ app.post("/add-memberR", async (req, res) => {
         try {
           const msg = {
             to: recipientEmail,
-            from: { email: "barangay.valdefuente@gmail.com", name: "Barangay System" },
+            from: { email: "wilynsasuncion@gmail.com", name: "Barangay System" },
             subject: "Your Resident Account Details",
             html: `
               <p>Dear <strong>${firstName}</strong>,</p>
