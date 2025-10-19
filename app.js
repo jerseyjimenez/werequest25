@@ -2114,7 +2114,7 @@ app.post("/approve-reg/:id", async (req, res) => {
       if (resident.email) {
         const msg = {
           to: resident.email,
-          from: { name: "Barangay Valdefuente", email: "wilynsasuncion@gmail.com" },
+          from: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
           subject: "Registration Approved",
           html: `
             <p>Dear <strong>${resident.firstName}</strong>,</p>
