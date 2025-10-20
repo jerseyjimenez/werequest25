@@ -94,16 +94,20 @@ cloudinary.config({
 });
 
 const storage = new CloudinaryStorage({
-    cloudinary: cloudinary,
-    params: async (req, file) => {
-        const isDocument = /\.(pdf|doc|docx)$/i.test(file.originalname);
-        return {
-            folder: "barangay_proofs",
-            resource_type: "auto",
-            allowed_formats: ["jpg", "png", "jpeg", "webp", "pdf", "doc", "docx"],
-        };
-    },
+  cloudinary,
+  params: async (req, file) => {
+    const ext = file.originalname.split(".").pop().toLowerCase();
+    const isDocument = ["pdf", "doc", "docx"].includes(ext);
+    return {
+      folder: "barangay_proofs",
+      resource_type: isDocument ? "raw" : "image",
+      format: ext,
+      allowed_formats: ["jpg", "png", "jpeg", "webp", "pdf", "doc", "docx"],
+      public_id: file.originalname.split(".")[0],
+    };
+  },
 });
+
 const upload = multer({ storage });
 
 const isLogin = async (req, res, next) => {
@@ -3103,13 +3107,13 @@ app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
 
     let { type, qty, purpose, remarks, remarkMain, requestFor } = req.body;
 
-    // Upload proof files to Cloudinary
+    // ✅ Upload proof files to Cloudinary
     let proof = [];
     if (req.files && req.files.length > 0) {
-      proof = req.files.map((file) => file.secure_url);
+      proof = req.files.map((file) => file.secure_url); // secure_url = Cloudinary link
     }
 
-    // Ensure all inputs are arrays
+    // ✅ Normalize arrays
     type = [].concat(type);
     qty = [].concat(qty).map(Number);
     purpose = [].concat(purpose);
@@ -3119,26 +3123,32 @@ app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
 
     console.log("Processed Data:", { type, qty, purpose, requestFor, proof, remarks, remarkMain });
 
-    // Validate lengths
+    // ✅ Validate lengths
     if (type.length !== qty.length || type.length !== purpose.length || type.length !== requestFor.length) {
       return res
         .status(400)
         .send('<script>alert("Mismatch in document fields! Please try again."); window.location="/hom";</script>');
     }
 
+    // ✅ Validate required
     if (!type.length || !qty.length || !purpose.length) {
       return res
         .status(400)
         .send('<script>alert("Please fill out all required fields."); window.location="/hom";</script>');
     }
 
-    // Fetch logged-in resident for email + indigent
+    // ✅ Get resident info
     const resident = await db.collection("resident").findOne({ _id: new ObjectId(sessionUserId) });
+    if (!resident) {
+      return res
+        .status(404)
+        .send('<script>alert("Resident not found! Please re-login."); window.location="/";</script>');
+    }
 
-    // Manila time helper
+    // ✅ Manila time function
     const manilaNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
 
-    // Prepare documents to insert
+    // ✅ Prepare documents for DB insert
     const docsToInsert = type.map((docType, i) => {
       const date = manilaNow();
       const yyyy = date.getFullYear();
@@ -3167,43 +3177,50 @@ app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
       };
     });
 
-    // Insert all documents
+    // ✅ Insert all requests
     await db.collection("request").insertMany(docsToInsert);
+    console.log("✅ Requests inserted successfully!");
 
-    // Redirect user immediately
+    // ✅ Redirect immediately
     res.redirect("/reqSuccess");
 
-    // Send confirmation email in the background (non-blocking)
+    // ✅ Send SendGrid email (background)
     (async () => {
-      if (resident?.email) {
-        const msg = {
-          sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
-          to: [{ email: resident.email }],
-          subject: "Document Request Submitted Successfully",
-          htmlContent: `
-            <p style="font-size: 18px; text-align: center;">Your request has been submitted successfully!</p>
-            <div style="font-size: 14px; text-align: center; font-weight: 500;">
+      try {
+        if (resident.email) {
+          const msg = {
+            to: resident.email,
+            from: {
+              email: "wilynsasuncion@gmail.com", // must be verified sender
+              name: "Barangay San Andres",
+            },
+            subject: "Document Request Submitted Successfully",
+            html: `
+              <p style="font-size: 18px; text-align: center;">Your request has been submitted successfully!</p>
+              <div style="font-size: 14px; text-align: center; font-weight: 500;">
                 The Barangay Secretary will review your request within 24 hours on business days and will notify you via email regarding its status. Weekends are excluded.
-            </div>
-          `,
-        };
+              </div>
+            `,
+          };
 
-        try {
           await sgMail.send(msg);
           console.log("✅ Email sent to:", resident.email);
-        } catch (emailError) {
-          console.error("❌ Error sending email via SendGrid:", emailError.message);
+        } else {
+          console.warn("⚠️ No email found for resident:", resident._id);
         }
+      } catch (emailError) {
+        console.error("❌ Error sending email via SendGrid:", emailError.message);
       }
     })();
 
   } catch (err) {
-    console.error("Error inserting request:", err);
+    console.error("❌ Error inserting request:", err);
     res
       .status(500)
       .send('<script>alert("Error inserting request! Please try again."); window.location="/hom";</script>');
   }
 });
+
 
 app.post("/reqDocumentA", isLogin, upload.array("proof[]"), async (req, res) => {
     const sessionUserId = req.session.userId;
