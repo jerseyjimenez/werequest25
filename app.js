@@ -99,7 +99,7 @@ const storage = new CloudinaryStorage({
         const isDocument = /\.(pdf|doc|docx)$/i.test(file.originalname);
         return {
             folder: "barangay_proofs",
-            resource_type: isDocument ? "raw" : "image", // 👈 detects automatically
+            resource_type: "auto",
             allowed_formats: ["jpg", "png", "jpeg", "webp", "pdf", "doc", "docx"],
         };
     },
@@ -400,72 +400,55 @@ const myReq = async (req, res, next) => {
         res.status(500).send('<script>alert("Internal Server Error!"); window.location="/";</script>');
     }
 };
+
 const isReq = async (req, res, next) => {
-    try {
-        // Ensure the user is logged in by checking session
-        if (!req.session.userId) {
-            return res.redirect("/"); // Redirect if not logged in
-        }
-
-        // Fetch requests from the 'request' collection where archive is 0
-        const requests = await db.collection("request")
-            .find({ archive: { $in: [0, "0"] } })
-            .sort({ updatedAt: -1 }) // Sort by updatedAt descending
-            .toArray();
-
-        // Fetch corresponding resident, household, and requestFor data for each request
-        for (let request of requests) {
-            const resident = await db.collection("resident")
-                .findOne({ _id: new ObjectId(request.requestBy) }); // always ObjectId
-            request.resident = resident;
-
-            if (resident) {
-                // Attach household data
-                const household = await db.collection("household")
-                    .findOne({ _id: new ObjectId(resident.householdId) });
-                request.household = household;
-
-                // Fetch requestFor resident (the person the request is for)
-                if (request.requestFor) {
-                    let requestForId;
-
-                    // Check if already ObjectId or just a string
-                    if (ObjectId.isValid(request.requestFor)) {
-                        requestForId = new ObjectId(request.requestFor);
-                    } else if (typeof request.requestFor === "object" && request.requestFor._id) {
-                        requestForId = new ObjectId(request.requestFor._id);
-                    }
-
-                    if (requestForId) {
-                        const forResident = await db.collection("resident")
-                            .findOne({ _id: requestForId });
-                        request.requestForData = forResident;
-                    }
-                }
-            }
-        }
-
-        // Fetch corresponding documents for each request
-        for (let request of requests) {
-            const documents = await db.collection("document")
-                .find({ reqId: request._id }) // Fetch documents where reqId matches request._id
-                .toArray();
-            request.documents = documents;
-        }
-
-        // Attach the combined data to the request object
-        req.requests = requests;
-
-        // Set request as a global variable for all views
-        res.locals.requests = requests;
-
-        // Proceed to the next middleware
-        next();
-    } catch (err) {
-        console.error("Error in myReq middleware:", err.message);
-        res.status(500).send('<script>alert("Internal Server Error!"); window.location="/";</script>');
+  try {
+    // Check if user is logged in
+    if (!req.session.userId) {
+      return res.redirect("/");
     }
+
+    // 1️⃣ Fetch all requests (only archive = 0 or "0")
+    const requests = await db.collection("request")
+      .find({ archive: { $in: [0, "0"] } })
+      .sort({ updatedAt: -1 })
+      .toArray();
+
+    if (requests.length === 0) {
+      req.requests = [];
+      res.locals.requests = [];
+      return next();
+    }
+
+    // 2️⃣ Collect all resident IDs (requestBy + requestFor)
+    const requestByIds = requests.map(r => r.requestBy?.toString()).filter(Boolean);
+    const requestForIds = requests.map(r => r.requestFor?.toString()).filter(Boolean);
+    const allResidentIds = [...new Set([...requestByIds, ...requestForIds])].map(id => new ObjectId(id));
+
+    // 3️⃣ Fetch all relevant residents in one query
+    const residents = await db.collection("resident")
+      .find({ _id: { $in: allResidentIds } })
+      .toArray();
+    const residentMap = Object.fromEntries(residents.map(r => [r._id.toString(), r]));
+
+    // 4️⃣ Combine all data (attach resident and requestForData)
+    const enrichedRequests = requests.map(r => ({
+      ...r,
+      resident: residentMap[r.requestBy?.toString()] || null,
+      requestForData: residentMap[r.requestFor?.toString()] || null,
+    }));
+
+    // 5️⃣ Attach to request and locals for use in views
+    req.requests = enrichedRequests;
+    res.locals.requests = enrichedRequests;
+    next();
+
+  } catch (err) {
+    console.error("❌ Error in isReq middleware:", err);
+    res.status(500).send('<script>alert("Internal Server Error!"); window.location="/";</script>');
+  }
 };
+
 
 const isRsd = async (req, res, next) => {
     try {
@@ -3123,7 +3106,7 @@ app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
     // Upload proof files to Cloudinary
     let proof = [];
     if (req.files && req.files.length > 0) {
-      proof = req.files.map((file) => file.path); // already Cloudinary URLs
+      proof = req.files.map((file) => file.secure_url);
     }
 
     // Ensure all inputs are arrays
@@ -3353,7 +3336,7 @@ app.get("/ovvC", isLogin, isReq, isRsd, (req, res) => res.render("ovvC", { layou
 app.get("/docc", isLogin, isReq, (req, res) => res.render("docc", { layout: "layout", title: "Document", activePage: "docc" }));
 
 app.get("/wc", isLogin, (req, res) => res.render("wc", { layout: "layout", title: "Document", activePage: "wc" }));
-app.get("/das", isLogin, isReq, async (req, res) => {
+app.get("/das", isLogin, async (req, res) => {
     try {
         const {
             filterDate,
@@ -3551,7 +3534,7 @@ app.get("/das", isLogin, isReq, async (req, res) => {
     }
 });
 
-app.get("/api/das-data", isLogin, isReq, async (req, res) => {
+app.get("/api/das-data", isLogin, async (req, res) => {
     try {
         const {
             filterDate,

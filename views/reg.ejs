@@ -354,48 +354,89 @@
                                 <input name="bYear" type="number" id="bYear" min="1900" placeholder="Year" required>
                             </div>
                         </div>
-                        <script>
-                        document.addEventListener("DOMContentLoaded", function () {
-                        const monthInput = document.getElementById("bMonth");
-                        const dayInput = document.getElementById("bDay");
-                        const yearInput = document.getElementById("bYear");
-                        const ageWarning = document.getElementById("ageWarning");
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  // --- AGE VALIDATION ---
+  const monthInput = document.getElementById("bMonth");
+  const dayInput = document.getElementById("bDay");
+  const yearInput = document.getElementById("bYear");
+  const ageWarning = document.getElementById("ageWarning");
 
-                        yearInput.addEventListener("keyup", function (event) {
-                            if (event.key === "Enter") {
-                            const month = parseInt(monthInput.value);
-                            const day = parseInt(dayInput.value);
-                            const year = parseInt(yearInput.value);
+  function calculateAge() {
+    const month = parseInt(monthInput.value);
+    const day = parseInt(dayInput.value);
+    const year = parseInt(yearInput.value);
 
-                            if (!month || !day || !year) {
-                                ageWarning.style.display = "block";
-                                ageWarning.style.color = "red";
-                                ageWarning.textContent = "⚠️ Please complete Month, Day, and Year first.";
-                                return;
-                            }
+    if (!month || !day || !year) {
+      ageWarning.style.display = "block";
+      ageWarning.style.color = "red";
+      ageWarning.textContent = "⚠️ Please complete Month, Day, and Year.";
+      return;
+    }
 
-                            // Compute age
-                            const today = new Date();
-                            const birthDate = new Date(year, month - 1, day);
-                            let age = today.getFullYear() - birthDate.getFullYear();
-                            const m = today.getMonth() - birthDate.getMonth();
-                            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-                                age--;
-                            }
+    const today = new Date();
+    const birthDate = new Date(year, month - 1, day);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
 
-                            // Display message instead of alert
-                            ageWarning.style.display = "block";
-                            if (age < 15) {
-                                ageWarning.style.color = "red";
-                                ageWarning.textContent = `⚠️ Age is ${age}. Must be at least 15 years old!`;
-                            } else {
-                                ageWarning.style.color = "green";
-                                ageWarning.textContent = `✅ Age is ${age}.`;
-                            }
-                            }
-                        });
-                        });
-                        </script>
+    ageWarning.style.display = "block";
+    if (age < 15) {
+      ageWarning.style.color = "red";
+      ageWarning.textContent = `⚠️ Age is ${age}. Must be at least 15 years old!`;
+    } else {
+      ageWarning.style.color = "green";
+      ageWarning.textContent = `✅ Age is ${age}.`;
+    }
+  }
+
+  // Recalculate age whenever any field changes
+  [monthInput, dayInput, yearInput].forEach((el) => {
+    el.addEventListener("input", calculateAge);
+    el.addEventListener("change", calculateAge);
+  });
+
+  // --- CHARACTER LIMIT FIXES ---
+  const phoneInput = document.getElementById("phone");
+  const houseNoInput = document.querySelector('input[name="houseNo"]');
+
+  function enforceLimit(input, maxLength) {
+    input.addEventListener("input", function () {
+      // Remove all non-numeric characters
+      this.value = this.value.replace(/\D/g, "");
+      // Cut off extra characters
+      if (this.value.length > maxLength) {
+        this.value = this.value.slice(0, maxLength);
+      }
+    });
+  }
+
+  // Apply enforcement
+  enforceLimit(phoneInput, 11);
+  enforceLimit(houseNoInput, 11);
+
+  // --- LETTERS-ONLY VALIDATION ---
+  const letterOnlyFields = [
+    document.querySelector('input[name="firstName"]'),
+    document.querySelector('input[name="middleName"]'),
+    document.querySelector('input[name="lastName"]'),
+    document.querySelector('input[name="extName"]'),
+    document.querySelector('input[name="nationality"]'),
+    document.querySelector('input[name="religion"]')
+  ];
+
+  letterOnlyFields.forEach((field) => {
+    if (!field) return;
+    field.addEventListener("input", function () {
+      // Allow only letters, spaces, hyphens, apostrophes
+      this.value = this.value.replace(/[^A-Za-z\s\-']/g, "");
+    });
+  });
+});
+</script>
+
                         <label class="colorPrimary" id="ageWarning" style="display: none;"></label>
                         <br>
                         <div class="height0 col alignStart">
