@@ -42,14 +42,31 @@
                                 <div class="height0 col alignStart">
                                     <label for="">House Number</label>
                                     <input 
-                                    type="text" 
-                                    name="houseNo" 
-                                    id="houseNo"
-                                    class="houseNo" 
+                                    type="text"
+                                    id="hN"
+                                    name="houseNo"
                                     required
-                                    pattern="[0-9]" 
-                                    title="">
+                                    title="Enter house number (numbers only)">
                                 </div>
+                                <script>
+                                document.addEventListener("DOMContentLoaded", () => {
+                                const houseInput = document.getElementById("hN");
+
+                                // Prevent non-numeric keypresses
+                                houseInput.addEventListener("keypress", (e) => {
+                                    const char = String.fromCharCode(e.which);
+                                    if (!/[0-9]/.test(char)) {
+                                    e.preventDefault();
+                                    }
+                                });
+
+                                // Clean up pasted or invalid input
+                                houseInput.addEventListener("input", () => {
+                                    houseInput.value = houseInput.value.replace(/[^0-9]/g, "");
+                                });
+                                });
+                                </script>
+
                                 <div class="height0 col alignStart">
                                     <label for="">Purok</label>
                                     <div class="selectBar widthMax100">
