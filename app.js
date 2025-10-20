@@ -2039,6 +2039,47 @@ app.post("/suspend-resident/:id", async (req, res) => {
   }
 });
 
+app.post("/suspend-resident2/:id", async (req, res) => {
+  if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
+
+  const residentId = req.params.id.trim();
+  if (!ObjectId.isValid(residentId))
+    return res.status(400).json({ success: false, message: "Invalid resident ID" });
+
+  try {
+    const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
+    if (!resident) return res.status(404).json({ success: false, message: "Resident not found" });
+
+    const result = await db.collection("resident").updateOne(
+      { _id: new ObjectId(residentId) },
+      { $set: { suspend: 0 } }
+    );
+
+    if (result.modifiedCount === 1) {
+      res.json({ success: true, message: "Resident unsuspended successfully." });
+
+      if (resident.email) {
+        const msg = {
+          to: resident.email,
+          from: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
+          subject: "Account Unsuspend Notification",
+          html: `
+            <p>Dear <strong>${resident.firstName}</strong>,</p>
+            <p>We are glad to inform you that your barangay system account has been <strong>unsuspended</strong>.</p>
+            <p>Thank you,<br>Barangay San Andres</p>
+          `,
+        };
+        sgMail.send(msg).then(() => console.log(`Unsuspension email sent to ${resident.email}`)).catch(console.error);
+      }
+    } else {
+      res.status(404).json({ success: false, message: "Resident not found or update failed." });
+    }
+  } catch (error) {
+    console.error("Error suspending resident:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
 // Decline Registration
 app.post("/decline-reg/:id", async (req, res) => {
   if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
