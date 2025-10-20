@@ -3110,7 +3110,7 @@ app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
     // ✅ Upload proof files to Cloudinary
     let proof = [];
     if (req.files && req.files.length > 0) {
-      proof = req.files.map((file) => file.secure_url); // secure_url = Cloudinary link
+      proof = req.files.map((file) => file.path);
     }
 
     // ✅ Normalize arrays
