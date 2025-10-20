@@ -94,8 +94,7 @@
 
                     <div class="gap10 bgWhite borderRadius10 padding10 proofWrapper hidden" id="c2">
                         <div class="field">
-                            <label class="str500 size14" style="opacity: 1;">Upload Supporting Documents or Proof of Authority</label>
-                            <label class="gray" style="opacity: 1;">You can upload document, photo or pdf file</label>
+                            <label class="str500 size14" style="opacity: 1;">Upload Photo of Supporting Documents or Proof of Authority</label>
                             <input type="file" style="border: 1px gray solid;" name="proof[]"  accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" class="proofInput">
                         </div>
                     </div>                    
@@ -128,7 +127,7 @@ document.addEventListener("DOMContentLoaded", function () {
         purposeSelect.innerHTML = "";
 
         let purposes = defaultPurposes;
-        if (docTypeSelect.value === "Good Moral" || docTypeSelect.value === "Certification") {
+        if (docTypeSelect.value === "Good Moral" || docTypeSelect.value === "Business Permit") {
             purposes = ["ANY LEGAL"];
         } else if (docTypeSelect.value === "Barangay Indigency") {
             purposes = indigencyPurposes;

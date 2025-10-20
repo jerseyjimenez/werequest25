@@ -41,6 +41,7 @@
     </style>
 </head>
 <body class="">
+<% if ( user.position === 'Punong Barangay' || user.position === 'Secretary' ) { %>
 <div class="col relative">
     <div class="height10" style="opacity: 0;"></div>
     <div class="height10 headPrime gap5 padding10 justifyBetween absolute left0 top0 index50 darkShadow">
@@ -208,5 +209,11 @@
     });
     
     </script>
+<% } else { %>
+    <div class="height0 width0 padding10 col">
+        <p class="size40">Access Denied!</p>
+        <p class="size20">You are not authorize to access this page!</p>
+    </div>
+<% } %>
 </body>
 </html>
