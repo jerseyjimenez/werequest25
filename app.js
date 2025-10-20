@@ -1026,6 +1026,28 @@ app.post("/deleteAnn/:id", async (req, res) => {
   }
 });
 
+app.post("/rAnn/:id", async (req, res) => {
+  try {
+    const announcementId = new ObjectId(req.params.id);
+
+    // ✅ Update archive field instead of deleting
+    await db.collection("announcements").updateOne(
+      { _id: announcementId },
+      { $set: { archive: "0" } }
+    );
+
+    // ✅ Redirect back to announcements
+    res.redirect("/annArc");
+  } catch (err) {
+    console.error("❌ Error archiving announcement:", err.message);
+    res
+      .status(500)
+      .send(
+        '<script>alert("Internal Server Error!"); window.location="/ann";</script>'
+      );
+  }
+});
+
 app.post("/add-resident", async (req, res) => {
   try {
     const {
