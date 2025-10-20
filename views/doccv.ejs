@@ -583,7 +583,7 @@
                         <td  class="textCenter">              
                                             <div class="height0 justifyCenter gap10 padding5">
                                                     <% if ( user.position === 'Punong Barangay') { %>
-                                                        <% if ( request.status !== 'Approved' && request.status !== 'Released') { %>  
+                                                        <% if ( request.status !== 'Approved' && request.status !== 'Released' && request.status !== 'Declined') { %>  
                                                             <a href="javascript:void(0)" onclick="showNoCard('<%= request._id %>')" class="nav bgRed white">
                                                                 Decline
                                                             </a>                     
@@ -594,7 +594,7 @@
                                                             <p class="size12 gray str500 textCenter">Action Done</p>
                                                         <% } %>  
                                                     <% } else { %>
-                                                        <% if ( request.status !== 'Verified' && request.status !== 'Released' && request.status !== 'Approved') { %>
+                                                        <% if ( request.status !== 'Verified' && request.status !== 'Released' && request.status !== 'Approved'  && request.status !== 'Declined') { %>
                                                             <a href="javascript:void(0)" onclick="showNoCard('<%= request._id %>')" class="nav bgRed white">
                                                                 Decline
                                                             </a>

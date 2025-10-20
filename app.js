@@ -3223,114 +3223,126 @@ app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
 
 
 app.post("/reqDocumentA", isLogin, upload.array("proof[]"), async (req, res) => {
-    const sessionUserId = req.session.userId;
+  const sessionUserId = req.session.userId;
 
-    try {
-        console.log("Request Body:", req.body);
+  try {
+    console.log("Request Body:", req.body);
 
-        let { type, qty, purpose, remarks, remarkMain, requestFor } = req.body;
+    let { type, qty, purpose, remarks, remarkMain, requestFor } = req.body;
 
-        // Upload proof files to Cloudinary
-        let proof = [];
-        if (req.files && req.files.length > 0) {
-            proof = req.files.map(file => file.path); // already Cloudinary URLs
-        }
-
-        // Ensure all inputs are arrays
-        type = [].concat(type);
-        qty = [].concat(qty).map(Number);
-        purpose = [].concat(purpose);
-        requestFor = [].concat(requestFor);
-        remarks = [].concat(remarks || []);
-        remarkMain = remarkMain || "";
-
-        console.log("Processed Data:", { type, qty, purpose, requestFor, proof, remarks, remarkMain });
-
-        // Validate lengths
-        if (type.length !== qty.length || type.length !== purpose.length || type.length !== requestFor.length) {
-            return res.status(400).send('<script>alert("Mismatch in document fields! Please try again."); window.location="/hom";</script>');
-        }
-
-        if (!type.length || !qty.length || !purpose.length) {
-            return res.status(400).send('<script>alert("Please fill out all required fields."); window.location="/hom";</script>');
-        }
-
-        // Fetch logged-in resident for email + indigent
-        const resident = await db.collection("resident").findOne({ _id: new ObjectId(sessionUserId) });
-        const residentIndigent = resident?.indigent || "";
-
-        // Manila time helper
-        const manilaNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-
-        // Prepare documents to insert
-        const docsToInsert = type.map((docType, i) => {
-            const date = manilaNow();
-            const yyyy = date.getFullYear();
-            const mm = String(date.getMonth() + 1).padStart(2, "0");
-            const dd = String(date.getDate()).padStart(2, "0");
-            const formattedDate = `${yyyy}${mm}${dd}`;
-            const randomChars = Math.random().toString(36).substring(2, 8);
-            const tr = `DOC-${formattedDate}-${randomChars}`;
-
-            let status = "Pending";
-            if (docType === "Barangay Indigency") {
-                status = "Pending"; // adjust if needed
-            }
-
-            const requestForId = requestFor[i] ? new ObjectId(requestFor[i]) : new ObjectId(sessionUserId);
-
-            return {
-                tr,
-                createdAt: date,
-                updatedAt: date,
-                status,
-                archive: 0,
-                requestBy: new ObjectId(sessionUserId),
-                requestFor: requestForId,
-                remarkMain,
-                remarks: remarks[i] || "",
-                type: docType,
-                qty: qty[i] || 1,
-                purpose: purpose[i] || "",
-                proof: proof[i] || "",
-            };
-        });
-
-        // Insert all documents
-        await db.collection("request").insertMany(docsToInsert);
-
-        // Redirect to success page immediately
-        res.redirect("/reqSuccessA");
-
-        // Send email notification asynchronously after redirect
-        if (resident?.email) {
-            const msg = {
-                sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
-                to: [{ email: resident.email }],
-                subject: "Document Request Submitted Successfully",
-                htmlContent: `
-            <p style="font-size: 18px; text-align: center;">Your request has been submitted successfully!</p>
-            <div style="font-size: 14px; text-align: center; font-weight: 500;">
-                The Barangay Secretary will review your request within 24 hours on business days and will notify you via email regarding its status. Weekends are excluded.
-            </div>
-        `,
-            };
-
-            try {
-                await sgMail.send(msg);
-                console.log("✅ Email sent to:", resident.email);
-            } catch (emailError) {
-                console.error("❌ Error sending email via Brevo:", emailError.message);
-            }
-        }
-
-
-    } catch (err) {
-        console.error("Error inserting request:", err);
-        res.status(500).send('<script>alert("Error inserting request! Please try again."); window.location="/hom";</script>');
+    // ✅ Upload proof files to Cloudinary
+    let proof = [];
+    if (req.files && req.files.length > 0) {
+      proof = req.files.map((file) => file.path);
     }
-});
 
+    // ✅ Normalize arrays
+    type = [].concat(type);
+    qty = [].concat(qty).map(Number);
+    purpose = [].concat(purpose);
+    requestFor = [].concat(requestFor);
+    remarks = [].concat(remarks || []);
+    remarkMain = remarkMain || "";
+
+    console.log("Processed Data:", { type, qty, purpose, requestFor, proof, remarks, remarkMain });
+
+    // ✅ Validate lengths
+    if (type.length !== qty.length || type.length !== purpose.length || type.length !== requestFor.length) {
+      return res
+        .status(400)
+        .send('<script>alert("Mismatch in document fields! Please try again."); window.location="/hom";</script>');
+    }
+
+    // ✅ Validate required
+    if (!type.length || !qty.length || !purpose.length) {
+      return res
+        .status(400)
+        .send('<script>alert("Please fill out all required fields."); window.location="/hom";</script>');
+    }
+
+    // ✅ Get resident info
+    const resident = await db.collection("resident").findOne({ _id: new ObjectId(sessionUserId) });
+    if (!resident) {
+      return res
+        .status(404)
+        .send('<script>alert("Resident not found! Please re-login."); window.location="/";</script>');
+    }
+
+    // ✅ Manila time function
+    const manilaNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+
+    // ✅ Prepare documents for DB insert
+    const docsToInsert = type.map((docType, i) => {
+      const date = manilaNow();
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      const formattedDate = `${yyyy}${mm}${dd}`;
+      const randomChars = Math.random().toString(36).substring(2, 8);
+      const tr = `DOC-${formattedDate}-${randomChars}`;
+
+      const requestForId = requestFor[i] ? new ObjectId(requestFor[i]) : new ObjectId(sessionUserId);
+
+      return {
+        tr,
+        createdAt: date,
+        updatedAt: date,
+        status: "Pending",
+        archive: 0,
+        requestBy: new ObjectId(sessionUserId),
+        requestFor: requestForId,
+        remarkMain,
+        remarks: remarks[i] || "",
+        type: docType,
+        qty: qty[i] || 1,
+        purpose: purpose[i] || "",
+        proof: proof[i] || "",
+      };
+    });
+
+    // ✅ Insert all requests
+    await db.collection("request").insertMany(docsToInsert);
+    console.log("✅ Requests inserted successfully!");
+
+    // ✅ Redirect immediately
+    res.redirect("/reqSuccessA");
+
+    // ✅ Send SendGrid email (background)
+    (async () => {
+      try {
+        if (resident.email) {
+          const msg = {
+            to: resident.email,
+            from: {
+              email: "wilynsasuncion@gmail.com", // must be verified sender
+              name: "Barangay San Andres",
+            },
+            subject: "Document Request Submitted Successfully",
+            html: `
+              <p style="font-size: 18px; text-align: center;">Your request has been submitted successfully!</p>
+              <div style="font-size: 14px; text-align: center; font-weight: 500;">
+                The Barangay Secretary will review your request within 24 hours on business days and will notify you via email regarding its status. Weekends are excluded.
+              </div>
+            `,
+          };
+
+          await sgMail.send(msg);
+          console.log("✅ Email sent to:", resident.email);
+        } else {
+          console.warn("⚠️ No email found for resident:", resident._id);
+        }
+      } catch (emailError) {
+        console.error("❌ Error sending email via SendGrid:", emailError.message);
+      }
+    })();
+
+  } catch (err) {
+    console.error("❌ Error inserting request:", err);
+    res
+      .status(500)
+      .send('<script>alert("Error inserting request! Please try again."); window.location="/hom";</script>');
+  }
+});
 
 app.get("/api/residents", async (req, res) => {
     try {
@@ -3968,7 +3980,7 @@ app.post("/yesDoc/:id", async (req, res) => {
     const requestId = new ObjectId(req.params.id);
     const requestCollection = db.collection("request");
 
-    // ✅ Update request status → Approved
+    // ✅ 1. Update request status
     const updateResult = await requestCollection.updateOne(
       { _id: requestId },
       { $set: { status: "Approved", updatedAt: new Date(), turnAt: new Date() } }
@@ -3978,175 +3990,250 @@ app.post("/yesDoc/:id", async (req, res) => {
       return res.json({ success: false, message: "No request found or already approved." });
     }
 
-    // ✅ Fetch request + resident info
+    // ✅ 2. Fetch updated request and related residents
     const request = await requestCollection.findOne({ _id: requestId });
+    if (!request) {
+      return res.status(404).json({ success: false, message: "Request not found." });
+    }
+
+    const resident = await db
+      .collection("resident")
+      .findOne({ _id: new ObjectId(request.requestBy) });
+
+    const familyHead = resident?.familyHeadId
+      ? await db
+          .collection("resident")
+          .findOne({ _id: new ObjectId(resident.familyHeadId) })
+      : null;
+
+    // ✅ 3. Determine recipient
+    const emailRecipient = resident?.email || familyHead?.email;
+    if (!emailRecipient) {
+      return res.json({
+        success: true,
+        message: "Request approved, but no email found for recipient.",
+      });
+    }
+
+    // ✅ 4. Build dynamic HTML email
+    const emailHTML = `
+      <div style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
+        <h2 style="color: #2b7a78;">Your Barangay Document Request Has Been Approved</h2>
+        <p>Dear ${resident?.firstName || "Resident"},</p>
+        <p>We’re pleased to inform you that your document request has been <strong>approved</strong>.</p>
+        <ul>
+          <li><strong>Reference ID:</strong> ${request._id}</li>
+          <li><strong>Status:</strong> Approved</li>
+          <li><strong>Approved Date:</strong> ${new Date().toLocaleString("en-US", {
+            timeZone: "Asia/Manila",
+          })}</li>
+        </ul>
+        <p>Thank you for using the Barangay San Andres Document Request System.</p>
+        <p style="margin-top: 30px;">Sincerely,<br><strong>Barangay San Andres</strong></p>
+      </div>
+    `;
+
+    // ✅ 5. Send the email (SendGrid format)
+    const msg = {
+      to: emailRecipient,
+      from: {
+        name: "Barangay San Andres",
+        email: "wilynsasuncion@gmail.com", // must be VERIFIED sender
+      },
+      subject: "Barangay Request Approved ✅",
+      html: emailHTML,
+    };
+
+    try {
+      await sgMail.send(msg);
+      console.log(`✅ Email successfully sent to ${emailRecipient}`);
+    } catch (sendError) {
+      console.error(`❌ SendGrid Error:`, sendError.response?.body || sendError.message);
+    }
+
+    // ✅ 6. Return success response
+    res.json({
+      success: true,
+      message: "Request approved and email sent successfully.",
+    });
+  } catch (error) {
+    console.error("❌ Error in yesDoc:", error);
+    res.status(500).json({
+      success: false,
+      message: "An internal error occurred while approving the request.",
+    });
+  }
+});
+app.post("/verDoc/:id", async (req, res) => {
+  try {
+    const requestId = new ObjectId(req.params.id);
+    const requestCollection = db.collection("request");
+
+    // 1️⃣ Update request → Verified
+    const updateResult = await requestCollection.updateOne(
+      { _id: requestId },
+      { $set: { status: "Verified", updatedAt: new Date(), turnAt: new Date() } }
+    );
+
+    if (updateResult.modifiedCount === 0) {
+      return res.json({ success: false, message: "No request found or already verified." });
+    }
+
+    // 2️⃣ Fetch related records
+    const request = await requestCollection.findOne({ _id: requestId });
+    if (!request) {
+      return res.status(404).json({ success: false, message: "Request not found." });
+    }
+
     const resident = await db.collection("resident").findOne({ _id: new ObjectId(request.requestBy) });
     const familyHead = resident?.familyHeadId
       ? await db.collection("resident").findOne({ _id: new ObjectId(resident.familyHeadId) })
       : null;
 
-    let emailRecipient = resident?.email || familyHead?.email || null;
+    // 3️⃣ Determine recipient
+    const emailRecipient = resident?.email || familyHead?.email;
     if (!emailRecipient) {
-      return res.json({ success: true, message: "Request approved, but no email found for recipient." });
+      return res.json({ success: true, message: "Request verified, but no email found for recipient." });
     }
 
-    // ✅ Build email body
-    let emailHTML = `
-      <p>Your request has been <strong>Approved</strong>.</p>
-      <p>Request Reference: ${request._id}</p>
-      <p>Thank you for using our system.</p>
+    // 4️⃣ Build the email content
+    const emailHTML = `
+      <div style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
+        <h2 style="color: #1b8e3f;">Barangay Document Request Verified ✅</h2>
+        <p>Dear ${resident?.firstName || "Resident"},</p>
+        <p>Your request has been <strong>verified</strong> by the Barangay Office.</p>
+        <ul>
+          <li><strong>Reference ID:</strong> ${request._id}</li>
+          <li><strong>Status:</strong> Verified</li>
+          <li><strong>Verified Date:</strong> ${new Date().toLocaleString("en-US", {
+            timeZone: "Asia/Manila",
+          })}</li>
+        </ul>
+        <p>Thank you for using the Barangay San Andres Document Request System.</p>
+        <p style="margin-top: 30px;">Sincerely,<br><strong>Barangay San Andres</strong></p>
+      </div>
     `;
 
-    if (resident?.email !== emailRecipient) {
-      emailHTML =
-        `<p>The request for ${resident?.firstName || "your household member"} has been approved.</p>` + emailHTML;
+    // 5️⃣ Send email through SendGrid
+    const msg = {
+      to: emailRecipient,
+      from: {
+        name: "Barangay San Andres",
+        email: "wilynsasuncion@gmail.com", // must be verified sender in SendGrid
+      },
+      subject: "Your Barangay Document Request Has Been Verified ✅",
+      html: emailHTML,
+    };
+
+    try {
+      await sgMail.send(msg);
+      console.log(`✅ Verification email sent to ${emailRecipient}`);
+    } catch (error) {
+      console.error("❌ SendGrid email error:", error.response?.body || error.message);
     }
 
-    // ✅ SendGrid email format
+    // 6️⃣ Send final response
+    res.json({
+      success: true,
+      message: "Request verified successfully and email sent.",
+      requestStatus: "Verified",
+    });
+  } catch (error) {
+    console.error("❌ Error in verDoc:", error);
+    res.status(500).json({
+      success: false,
+      message: "An internal error occurred while verifying the request.",
+    });
+  }
+});
+
+// ✅ Decline request
+app.post("/noDoc/:id", async (req, res) => {
+  try {
+    const requestId = new ObjectId(req.params.id);
+    const { notes } = req.body;
+    const requestCollection = db.collection("request");
+
+    // 1️⃣ Update request status → Declined
+    const updateResult = await requestCollection.updateOne(
+      { _id: requestId },
+      {
+        $set: {
+          status: "Declined",
+          notes: notes || "No notes provided.",
+          updatedAt: new Date(),
+          turnAt: new Date(),
+        },
+      }
+    );
+
+    if (updateResult.modifiedCount === 0) {
+      return res.json({ success: false, message: "No request found or already declined." });
+    }
+
+    // 2️⃣ Get request and resident data
+    const request = await requestCollection.findOne({ _id: requestId });
+    if (!request) {
+      return res.status(404).json({ success: false, message: "Request not found." });
+    }
+
+    const resident = await db.collection("resident").findOne({ _id: new ObjectId(request.requestBy) });
+    const familyHead = resident?.familyHeadId
+      ? await db.collection("resident").findOne({ _id: new ObjectId(resident.familyHeadId) })
+      : null;
+
+    // 3️⃣ Determine who receives the email
+    const emailRecipient = resident?.email || familyHead?.email;
+    if (!emailRecipient) {
+      return res.json({ success: true, message: "Request declined, but no recipient email found." });
+    }
+
+    // 4️⃣ Build the email HTML
+    const emailHTML = `
+      <div style="font-family: Arial, sans-serif; color: #333; padding: 20px;">
+        <h2 style="color: #d93025;">Barangay Document Request Declined ❌</h2>
+        <p>Dear ${resident?.firstName || "Resident"},</p>
+        <p>We regret to inform you that your document request has been <strong>declined</strong>.</p>
+        <ul>
+          <li><strong>Reference ID:</strong> ${request._id}</li>
+          <li><strong>Status:</strong> Declined</li>
+          <li><strong>Reason:</strong> ${notes || "No specific remarks provided."}</li>
+          <li><strong>Date:</strong> ${new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" })}</li>
+        </ul>
+        <p>You may contact the Barangay office for more details or to reapply.</p>
+        <p style="margin-top: 30px;">Sincerely,<br><strong>Barangay San Andres</strong></p>
+      </div>
+    `;
+
+    // 5️⃣ Send email via SendGrid
     const msg = {
       to: emailRecipient,
       from: {
         name: "Barangay San Andres",
         email: "wilynsasuncion@gmail.com", // must be verified in SendGrid
       },
-      subject: "Request Status Update - Approved",
+      subject: "Your Barangay Document Request Has Been Declined ❌",
       html: emailHTML,
     };
 
-    // ✅ Send the email
     try {
       await sgMail.send(msg);
-      console.log(`✅ Email sent to ${emailRecipient}`);
+      console.log(`📧 Decline email sent to: ${emailRecipient}`);
     } catch (error) {
-      console.error(`❌ Failed to send email to ${emailRecipient}:`, error.message);
-      if (error.response) console.error(error.response.body);
+      console.error("❌ SendGrid email error:", error.response?.body || error.message);
     }
 
-    // ✅ Final response
-    res.json({ success: true, message: "Request approved!", requestStatus: "Approved" });
-
+    // 6️⃣ Send final response
+    res.json({
+      success: true,
+      message: "Request declined successfully and email sent.",
+      requestStatus: "Declined",
+    });
   } catch (error) {
-    console.error("❌ Error in yesDoc:", error);
-    res.status(500).json({ success: false, message: "Error approving request." });
+    console.error("❌ Error in noDoc:", error);
+    res.status(500).json({ success: false, message: "Error declining request." });
   }
 });
-
-// ✅ Verify request
-app.post("/verDoc/:id", async (req, res) => {
-    try {
-        const requestId = new ObjectId(req.params.id);
-        const requestCollection = db.collection("request");
-
-        const updateResult = await requestCollection.updateOne(
-            { _id: requestId },
-            { $set: { status: "Verified", updatedAt: new Date(), turnAt: new Date() } }
-        );
-
-        if (updateResult.modifiedCount === 0) {
-            return res.json({ success: false, message: "No request found or already verified." });
-        }
-
-        const request = await requestCollection.findOne({ _id: requestId });
-        const resident = await db.collection("resident").findOne({ _id: new ObjectId(request.requestBy) });
-        const familyHead = resident?.familyHeadId
-            ? await db.collection("resident").findOne({ _id: new ObjectId(resident.familyHeadId) })
-            : null;
-        let emailRecipient = resident?.email || familyHead?.email || null;
-        if (!emailRecipient) return res.json({ success: true, message: "Request verified, no email sent." });
-
-        let emailHTML = `
-        <p>Your request has been <strong>Verified</strong>.</p>
-        <p>Request Reference: ${request._id}</p>
-        <p>Thank you for using our system.</p>
-`;
-
-        if (resident?.email !== emailRecipient) {
-            emailHTML = `<p>The request for ${resident?.firstName || "your household member"} has been verified.</p>` + emailHTML;
-        }
-
-        const msg = {
-            sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
-            to: [{ email: emailRecipient }],
-            subject: "Request Status Update - Verified",
-            htmlContent: emailHTML,
-        };
-
-        try {
-            await sgMail.send(msg);
-            console.log("✅ Verification email sent:", emailRecipient);
-        } catch (error) {
-            console.error("❌ Error sending verification email via Brevo:", error.message);
-        }
-
-        res.json({ success: true, message: "Request verified!", requestStatus: "Verified" });
-
-
-        res.json({ success: true, message: "Request verified!", requestStatus: "Verified" });
-
-    } catch (error) {
-        console.error("Error in verDoc:", error);
-        res.status(500).json({ success: false, message: "Error verifying request." });
-    }
-});
-
-
-// ✅ Decline request
-app.post("/noDoc/:id", async (req, res) => {
-    try {
-        const requestId = new ObjectId(req.params.id);
-        const requestCollection = db.collection("request");
-        const { notes } = req.body;
-
-        const updateResult = await requestCollection.updateOne(
-            { _id: requestId },
-            { $set: { status: "Declined", notes: notes || "No notes provided.", updatedAt: new Date(), turnAt: new Date() } }
-        );
-
-        if (updateResult.modifiedCount === 0) {
-            return res.json({ success: false, message: "No request found or already declined." });
-        }
-
-        const request = await requestCollection.findOne({ _id: requestId });
-        const resident = await db.collection("resident").findOne({ _id: new ObjectId(request.requestBy) });
-        const familyHead = resident?.familyHeadId
-            ? await db.collection("resident").findOne({ _id: new ObjectId(resident.familyHeadId) })
-            : null;
-
-        let emailRecipient = resident?.email || familyHead?.email || null;
-        if (!emailRecipient) return res.json({ success: true, message: "Request declined, no email sent." });
-
-        let emailHTML = `
-    <p>Your request has been <strong>Declined</strong>.</p>
-    <p>Reason: <strong>${notes || "No specific remarks."}</strong></p>
-    <p>Request Reference: ${request._id}</p>
-`;
-
-        if (resident?.email !== emailRecipient) {
-            emailHTML = `<p>The request for ${resident?.firstName || "your household member"} has been declined.</p>` + emailHTML;
-        }
-
-        const msg = {
-            sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
-            to: [{ email: emailRecipient }],
-            subject: "Request Status Update - Declined",
-            htmlContent: emailHTML,
-        };
-
-        try {
-            await sgMail.send(msg);
-            console.log("❌ Decline email sent:", emailRecipient);
-        } catch (error) {
-            console.error("Error sending decline email via Brevo:", error.message);
-        }
-
-        res.json({ success: true, message: "Request declined!", requestStatus: "Declined" });
-
-    } catch (error) {
-        console.error("Error in noDoc:", error);
-        res.status(500).json({ success: false, message: "Error declining request." });
-    }
-});
-
 
 app.post("/release/:id", async (req, res) => {
     try {
