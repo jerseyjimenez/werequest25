@@ -3957,63 +3957,72 @@ app.get('/doccv/:id', isLogin, async (req, res) => {
 });
 // ✅ Approve request
 app.post("/yesDoc/:id", async (req, res) => {
-    try {
-        const requestId = new ObjectId(req.params.id);
-        const requestCollection = db.collection("request");
+  try {
+    const requestId = new ObjectId(req.params.id);
+    const requestCollection = db.collection("request");
 
-        // Update request status → Approved
-        const updateResult = await requestCollection.updateOne(
-            { _id: requestId },
-            { $set: { status: "Approved", updatedAt: new Date(), turnAt: new Date() } }
-        );
+    // ✅ Update request status → Approved
+    const updateResult = await requestCollection.updateOne(
+      { _id: requestId },
+      { $set: { status: "Approved", updatedAt: new Date(), turnAt: new Date() } }
+    );
 
-        if (updateResult.modifiedCount === 0) {
-            return res.json({ success: false, message: "No request found or already approved." });
-        }
-
-        // Fetch request + resident info
-        const request = await requestCollection.findOne({ _id: requestId });
-        const resident = await db.collection("resident").findOne({ _id: new ObjectId(request.requestBy) });
-        const familyHead = resident?.familyHeadId
-            ? await db.collection("resident").findOne({ _id: new ObjectId(resident.familyHeadId) })
-            : null;
-
-        let emailRecipient = resident?.email || familyHead?.email || null;
-        if (!emailRecipient) return res.json({ success: true, message: "Request approved, no email sent." });
-
-        let emailHTML = `
-    <p>Your request has been <strong>Approved</strong>.</p>
-    <p>Request Reference: ${request._id}</p>
-    <p>Thank you for using our system.</p>
-`;
-
-        if (resident?.email !== emailRecipient) {
-            emailHTML = `<p>The request for ${resident?.firstName || "your household member"} has been approved.</p>` + emailHTML;
-        }
-
-        const sendSmtpEmail = {
-            sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
-            to: [{ email: emailRecipient }],
-            subject: "Request Status Update - Approved",
-            htmlContent: emailHTML,
-        };
-
-        try {
-            await brevoClient.sendTransacEmail(sendSmtpEmail);
-            console.log("✅ Approval email sent:", emailRecipient);
-        } catch (error) {
-            console.error("❌ Error sending email via Brevo:", error.message);
-        }
-
-        res.json({ success: true, message: "Request approved!", requestStatus: "Approved" });
-
-
-    } catch (error) {
-        console.error("Error in yesDoc:", error);
-        res.status(500).json({ success: false, message: "Error approving request." });
+    if (updateResult.modifiedCount === 0) {
+      return res.json({ success: false, message: "No request found or already approved." });
     }
-});
 
+    // ✅ Fetch request + resident info
+    const request = await requestCollection.findOne({ _id: requestId });
+    const resident = await db.collection("resident").findOne({ _id: new ObjectId(request.requestBy) });
+    const familyHead = resident?.familyHeadId
+      ? await db.collection("resident").findOne({ _id: new ObjectId(resident.familyHeadId) })
+      : null;
+
+    let emailRecipient = resident?.email || familyHead?.email || null;
+    if (!emailRecipient) {
+      return res.json({ success: true, message: "Request approved, but no email found for recipient." });
+    }
+
+    // ✅ Build email body
+    let emailHTML = `
+      <p>Your request has been <strong>Approved</strong>.</p>
+      <p>Request Reference: ${request._id}</p>
+      <p>Thank you for using our system.</p>
+    `;
+
+    if (resident?.email !== emailRecipient) {
+      emailHTML =
+        `<p>The request for ${resident?.firstName || "your household member"} has been approved.</p>` + emailHTML;
+    }
+
+    // ✅ SendGrid email format
+    const msg = {
+      to: emailRecipient,
+      from: {
+        name: "Barangay San Andres",
+        email: "wilynsasuncion@gmail.com", // must be verified in SendGrid
+      },
+      subject: "Request Status Update - Approved",
+      html: emailHTML,
+    };
+
+    // ✅ Send the email
+    try {
+      await sgMail.send(msg);
+      console.log(`✅ Email sent to ${emailRecipient}`);
+    } catch (error) {
+      console.error(`❌ Failed to send email to ${emailRecipient}:`, error.message);
+      if (error.response) console.error(error.response.body);
+    }
+
+    // ✅ Final response
+    res.json({ success: true, message: "Request approved!", requestStatus: "Approved" });
+
+  } catch (error) {
+    console.error("❌ Error in yesDoc:", error);
+    res.status(500).json({ success: false, message: "Error approving request." });
+  }
+});
 
 // ✅ Verify request
 app.post("/verDoc/:id", async (req, res) => {
