@@ -347,15 +347,22 @@
                             </div>
                         </div>
                         <script>
-                        // Calculate and validate age after entering year
-                        document.getElementById("bYear").addEventListener("keyup", function(event) {
+                        document.addEventListener("DOMContentLoaded", function () {
+                        const monthInput = document.getElementById("bMonth");
+                        const dayInput = document.getElementById("bDay");
+                        const yearInput = document.getElementById("bYear");
+                        const ageWarning = document.getElementById("ageWarning");
+
+                        yearInput.addEventListener("keyup", function (event) {
                             if (event.key === "Enter") {
-                            const month = parseInt(document.getElementById("bMonth").value);
-                            const day = parseInt(document.getElementById("bDay").value);
-                            const year = parseInt(document.getElementById("bYear").value);
+                            const month = parseInt(monthInput.value);
+                            const day = parseInt(dayInput.value);
+                            const year = parseInt(yearInput.value);
 
                             if (!month || !day || !year) {
-                                alert("⚠️ Please complete Month, Day, and Year first.");
+                                ageWarning.style.display = "block";
+                                ageWarning.style.color = "red";
+                                ageWarning.textContent = "⚠️ Please complete Month, Day, and Year first.";
                                 return;
                             }
 
@@ -368,13 +375,17 @@
                                 age--;
                             }
 
-                            // Show result or warning
+                            // Display message instead of alert
+                            ageWarning.style.display = "block";
                             if (age < 15) {
-                                alert(`⚠️ Age is ${age}. Must be at least 15 years old!`);
+                                ageWarning.style.color = "red";
+                                ageWarning.textContent = `⚠️ Age is ${age}. Must be at least 15 years old!`;
                             } else {
-                                alert(`✅ Age is ${age}.`);
+                                ageWarning.style.color = "green";
+                                ageWarning.textContent = `✅ Age is ${age}.`;
                             }
                             }
+                        });
                         });
                         </script>
                         <label class="colorPrimary" id="ageWarning" style="display: none;"></label>
