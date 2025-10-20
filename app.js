@@ -273,11 +273,13 @@ const isAnn = async (req, res, next) => {
         const oneMonthAgo = new Date();
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 3); // Get date 1 month ago
 
-        // Fetch announcements created within the last month
-        const announcements = await db.collection("announcements")
-            .find({ createdAt: { $gte: oneMonthAgo } }) // Filter by createdAt
-            .sort({ createdAt: -1 }) // Sort by updatedAt in descending order
-            .toArray();
+        const announcements = await db.collection("announcements").find({
+            createdAt: { $gte: oneMonthAgo },
+            $or: [
+                { archive: 0 },
+                { archive: "0" }
+            ]
+            }).toArray();
 
         // Attach announcements data to the request object
         req.announcements = announcements;
