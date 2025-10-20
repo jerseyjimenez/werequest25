@@ -3113,108 +3113,113 @@ const upload2 = multer({
 });
 
 app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
-    const sessionUserId = req.session.userId;
+  const sessionUserId = req.session.userId;
 
-    try {
-        console.log("Request Body:", req.body);
+  try {
+    console.log("Request Body:", req.body);
 
-        let { type, qty, purpose, remarks, remarkMain, requestFor } = req.body;
+    let { type, qty, purpose, remarks, remarkMain, requestFor } = req.body;
 
-        // Upload proof files to Cloudinary
-        let proof = [];
-        if (req.files && req.files.length > 0) {
-            proof = req.files.map(file => file.path); // already Cloudinary URLs
-        }
+    // Upload proof files to Cloudinary
+    let proof = [];
+    if (req.files && req.files.length > 0) {
+      proof = req.files.map((file) => file.path); // already Cloudinary URLs
+    }
 
-        // Ensure all inputs are arrays
-        type = [].concat(type);
-        qty = [].concat(qty).map(Number);
-        purpose = [].concat(purpose);
-        requestFor = [].concat(requestFor);
-        remarks = [].concat(remarks || []);
-        remarkMain = remarkMain || "";
+    // Ensure all inputs are arrays
+    type = [].concat(type);
+    qty = [].concat(qty).map(Number);
+    purpose = [].concat(purpose);
+    requestFor = [].concat(requestFor);
+    remarks = [].concat(remarks || []);
+    remarkMain = remarkMain || "";
 
-        console.log("Processed Data:", { type, qty, purpose, requestFor, proof, remarks, remarkMain });
+    console.log("Processed Data:", { type, qty, purpose, requestFor, proof, remarks, remarkMain });
 
-        // Validate lengths
-        if (type.length !== qty.length || type.length !== purpose.length || type.length !== requestFor.length) {
-            return res.status(400).send('<script>alert("Mismatch in document fields! Please try again."); window.location="/hom";</script>');
-        }
+    // Validate lengths
+    if (type.length !== qty.length || type.length !== purpose.length || type.length !== requestFor.length) {
+      return res
+        .status(400)
+        .send('<script>alert("Mismatch in document fields! Please try again."); window.location="/hom";</script>');
+    }
 
-        if (!type.length || !qty.length || !purpose.length) {
-            return res.status(400).send('<script>alert("Please fill out all required fields."); window.location="/hom";</script>');
-        }
+    if (!type.length || !qty.length || !purpose.length) {
+      return res
+        .status(400)
+        .send('<script>alert("Please fill out all required fields."); window.location="/hom";</script>');
+    }
 
-        // Fetch logged-in resident for email + indigent
-        const resident = await db.collection("resident").findOne({ _id: new ObjectId(sessionUserId) });
+    // Fetch logged-in resident for email + indigent
+    const resident = await db.collection("resident").findOne({ _id: new ObjectId(sessionUserId) });
 
-        // Manila time helper
-        const manilaNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+    // Manila time helper
+    const manilaNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
 
-        // Prepare documents to insert
-        const docsToInsert = type.map((docType, i) => {
-            const date = manilaNow();
-            const yyyy = date.getFullYear();
-            const mm = String(date.getMonth() + 1).padStart(2, "0");
-            const dd = String(date.getDate()).padStart(2, "0");
-            const formattedDate = `${yyyy}${mm}${dd}`;
-            const randomChars = Math.random().toString(36).substring(2, 8);
-            const tr = `DOC-${formattedDate}-${randomChars}`;
+    // Prepare documents to insert
+    const docsToInsert = type.map((docType, i) => {
+      const date = manilaNow();
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      const formattedDate = `${yyyy}${mm}${dd}`;
+      const randomChars = Math.random().toString(36).substring(2, 8);
+      const tr = `DOC-${formattedDate}-${randomChars}`;
 
-            let status = "Pending";
-            if (docType === "Barangay Indigency") {
-                status = "Pending"; // Adjust logic if needed
-            }
+      const requestForId = requestFor[i] ? new ObjectId(requestFor[i]) : new ObjectId(sessionUserId);
 
-            const requestForId = requestFor[i] ? new ObjectId(requestFor[i]) : new ObjectId(sessionUserId);
+      return {
+        tr,
+        createdAt: date,
+        updatedAt: date,
+        status: "Pending",
+        archive: 0,
+        requestBy: new ObjectId(sessionUserId),
+        requestFor: requestForId,
+        remarkMain,
+        remarks: remarks[i] || "",
+        type: docType,
+        qty: qty[i] || 1,
+        purpose: purpose[i] || "",
+        proof: proof[i] || "",
+      };
+    });
 
-            return {
-                tr,
-                createdAt: date,
-                updatedAt: date,
-                status,
-                archive: 0,
-                requestBy: new ObjectId(sessionUserId),
-                requestFor: requestForId,
-                remarkMain,
-                remarks: remarks[i] || "",
-                type: docType,
-                qty: qty[i] || 1,
-                purpose: purpose[i] || "",
-                proof: proof[i] || ""
-            };
-        });
+    // Insert all documents
+    await db.collection("request").insertMany(docsToInsert);
 
-        // Insert documents
-        await db.collection("request").insertMany(docsToInsert);
+    // Redirect user immediately
+    res.redirect("/reqSuccess");
 
-        // Send response immediately before sending email
-        res.redirect("/reqSuccess");
-        if (resident?.email) {
-            const msg = {
-                sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
-                to: [{ email: resident.email }],
-                subject: "Document Request Submitted Successfully",
-                htmlContent: `
+    // Send confirmation email in the background (non-blocking)
+    (async () => {
+      if (resident?.email) {
+        const msg = {
+          sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
+          to: [{ email: resident.email }],
+          subject: "Document Request Submitted Successfully",
+          htmlContent: `
             <p style="font-size: 18px; text-align: center;">Your request has been submitted successfully!</p>
             <div style="font-size: 14px; text-align: center; font-weight: 500;">
                 The Barangay Secretary will review your request within 24 hours on business days and will notify you via email regarding its status. Weekends are excluded.
             </div>
-        `,
-            };
+          `,
+        };
 
-            try {
-                await sgMail.send(msg);
-                console.log("✅ Email sent to:", resident.email);
-            } catch (emailError) {
-                console.error("❌ Error sending email via Brevo:", emailError.message);
-            }
+        try {
+          await sgMail.send(msg);
+          console.log("✅ Email sent to:", resident.email);
+        } catch (emailError) {
+          console.error("❌ Error sending email via SendGrid:", emailError.message);
         }
+      }
+    })();
 
-    } catch (err) {
-        console.error("Error inserting request:", err);
-        res.status(500).send('<script>alert("Error inserting request! Please try again."); window.location="/hom";</script>');
-    }
+  } catch (err) {
+    console.error("Error inserting request:", err);
+    res
+      .status(500)
+      .send('<script>alert("Error inserting request! Please try again."); window.location="/hom";</script>');
+  }
 });
 
 app.post("/reqDocumentA", isLogin, upload.array("proof[]"), async (req, res) => {
