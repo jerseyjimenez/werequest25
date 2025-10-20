@@ -5619,41 +5619,46 @@ const generateRandomPassword = () => {
 };
 
 app.post("/forgotX", async (req, res) => {
-    try {
-        const { email } = req.body;
-        if (!email) return res.redirect("/forgot?error=" + encodeURIComponent("Email is required"));
+  try {
+    const { email } = req.body;
+    if (!email) return res.redirect("/forgot?error=" + encodeURIComponent("Email is required"));
 
-        const user = await db.collection("resident").findOne({ email });
-        if (!user) return res.redirect("/forgot?error=" + encodeURIComponent("No account found with that email address"));
+    const user = await db.collection("resident").findOne({ email });
+    if (!user) return res.redirect("/forgot?error=" + encodeURIComponent("No account found with that email address"));
 
-        const newPassword = generateRandomPassword();
-        await db.collection("resident").updateOne(
-            { _id: user._id },
-            { $set: { password: newPassword, reset: 1 } }
-        );
+    const newPassword = generateRandomPassword();
 
-        const emailHTML = `
-            <p>A temporary password has been generated for your account:</p>
-            <p style="font-size: 18px; font-weight: bold;">🔑 ${newPassword}</p>
-            <p>Please log in and change your password immediately for security reasons.</p>
-        `;
+    await db.collection("resident").updateOne(
+      { _id: user._id },
+      { $set: { password: newPassword, reset: 1 } }
+    );
 
-        const msg = {
-            sender: { name: "Barangay System", email: "wilynsasuncion@gmail.com" },
-            to: [{ email }],
-            subject: "Password Reset Request",
-            htmlContent: emailHTML,
-        };
+    const emailHTML = `
+      <p>A temporary password has been generated for your account:</p>
+      <p style="font-size: 18px; font-weight: bold;">🔑 ${newPassword}</p>
+      <p>Please log in and change your password immediately for security reasons.</p>
+    `;
 
-        // Send email and then render success page
-        await sgMail.send(msg);
-        console.log(`✅ Password reset email sent to ${email}`);
-        res.render("passSuccess", { email, error: "Password Reset Successfully!" });
+    // ✅ SendGrid-compatible format
+    const msg = {
+      to: email,
+      from: {
+        email: "wilynsasuncion@gmail.com", // must be verified in SendGrid
+        name: "Barangay System",
+      },
+      subject: "Password Reset Request",
+      html: emailHTML,
+    };
 
-    } catch (error) {
-        console.error("❌ Error resetting password:", error);
-        res.redirect("/forgot?error=" + encodeURIComponent("Internal Server Error"));
-    }
+    // Send email and render success page
+    await sgMail.send(msg);
+    console.log(`✅ Password reset email sent to ${email}`);
+    res.render("passSuccess", { email, error: "Password Reset Successfully!" });
+
+  } catch (error) {
+    console.error("❌ Error resetting password:", error.response?.body || error.message);
+    res.redirect("/forgot?error=" + encodeURIComponent("Internal Server Error"));
+  }
 });
 
 
