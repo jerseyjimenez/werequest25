@@ -42,13 +42,12 @@
                                 <div class="height0 col alignStart">
                                     <label for="">House Number</label>
                                     <input 
-                                    type="tel" 
+                                    type="text" 
                                     name="houseNo" 
-                                    id="phone" 
+                                    id="phone"
                                     class="phone" 
                                     required
-                                    maxlength="11" 
-                                    pattern="[0-9]{11}" 
+                                    pattern="[0-9]" 
                                     title="">
                                 </div>
                                 <div class="height0 col alignStart">
@@ -318,9 +317,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function enforceLimit(input, maxLength) {
     input.addEventListener("input", function () {
-      // Remove all non-numeric characters
       this.value = this.value.replace(/\D/g, "");
-      // Cut off extra characters
       if (this.value.length > maxLength) {
         this.value = this.value.slice(0, maxLength);
       }
