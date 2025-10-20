@@ -7760,30 +7760,48 @@ app.get('/cases/edit/:id', isLogin, async (req, res) => {
 });
 
 app.post('/cases/edit/:id', async (req, res) => {
-    try {
-        const caseId = req.params.id;
+  try {
+    const caseId = req.params.id.trim();
+    const { caseNo, status, type, remarks } = req.body;
 
-        let { caseNo, status, type, remarks } = req.body;
+    const caseCollection = db.collection('cases');
 
-        await db.collection('cases').updateOne(
-            { _id: new ObjectId(caseId) },
-            {
-                $set: {
-                    caseNo,
-                    status,
-                    type: type.split(',').map(t => t.trim()),
-                    remarks,
-                    updatedAt: new Date()
-                }
-            }
-        );
+    // 🔹 Define statuses that should be archived
+    const archiveStatuses = ["Resolved", "Settled", "Escalated"];
 
-        // redirect to /blotv/:id
-        res.redirect(`/blotv/${caseId}`);
-    } catch (err) {
-        console.error(err);
-        res.send("Error updating case");
+    // 🔹 Prepare update fields
+    const updateFields = {
+      caseNo,
+      status,
+      type: type.split(',').map(t => t.trim()),
+      remarks,
+      updatedAt: new Date(),
+      // Automatically set archive flag based on status
+      archive: archiveStatuses.includes(status) ? 1 : 0
+    };
+
+    // 🔹 Update the case
+    const updateResult = await caseCollection.updateOne(
+      { _id: new ObjectId(caseId) },
+      { $set: updateFields }
+    );
+
+    if (updateResult.modifiedCount === 0) {
+      console.warn(`⚠️ No case found or no changes made for ID: ${caseId}`);
+    } else {
+      console.log(`✅ Case ${caseId} updated successfully.`);
+      if (updateFields.archive === 1) {
+        console.log(`🗂 Case ${caseId} archived (status: ${status}).`);
+      }
     }
+
+    // 🔹 Redirect after update
+    res.redirect(`/blotv/${caseId}`);
+
+  } catch (err) {
+    console.error("❌ Error updating case:", err);
+    res.status(500).send("Error updating case");
+  }
 });
 
 
