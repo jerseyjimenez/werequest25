@@ -2039,7 +2039,7 @@ app.post("/suspend-resident/:id", async (req, res) => {
   }
 });
 
-app.post("/suspend-resident2/:id", async (req, res) => {
+app.post("/suspend2-resident/:id", async (req, res) => {
   if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
 
   const residentId = req.params.id.trim();
@@ -2076,6 +2076,66 @@ app.post("/suspend-resident2/:id", async (req, res) => {
     }
   } catch (error) {
     console.error("Error suspending resident:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+app.post("/archive-resident/:id", async (req, res) => {
+  if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
+
+  const residentId = req.params.id.trim();
+  if (!ObjectId.isValid(residentId)) {
+    return res.status(400).json({ success: false, message: "Invalid resident ID" });
+  }
+
+  try {
+    const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
+    if (!resident) {
+      return res.status(404).json({ success: false, message: "Resident not found" });
+    }
+
+    const result = await db.collection("resident").updateOne(
+      { _id: new ObjectId(residentId) },
+      { $set: { archive: 1 } }
+    );
+
+    if (result.modifiedCount === 1) {
+      res.json({ success: true, message: "Resident archived successfully." });
+    } else {
+      res.status(404).json({ success: false, message: "Resident not found or update failed." });
+    }
+  } catch (error) {
+    console.error("❌ Error archiving resident:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+app.post("/archive2-resident/:id", async (req, res) => {
+  if (!db) return res.status(500).json({ success: false, message: "Database not connected" });
+
+  const residentId = req.params.id.trim();
+  if (!ObjectId.isValid(residentId)) {
+    return res.status(400).json({ success: false, message: "Invalid resident ID" });
+  }
+
+  try {
+    const resident = await db.collection("resident").findOne({ _id: new ObjectId(residentId) });
+    if (!resident) {
+      return res.status(404).json({ success: false, message: "Resident not found" });
+    }
+
+    const result = await db.collection("resident").updateOne(
+      { _id: new ObjectId(residentId) },
+      { $set: { archive: 0 } }
+    );
+
+    if (result.modifiedCount === 1) {
+      res.json({ success: true, message: "Resident restore successfully." });
+    } else {
+      res.status(404).json({ success: false, message: "Resident not found or update failed." });
+    }
+  } catch (error) {
+    console.error("❌ Error archiving resident:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 });

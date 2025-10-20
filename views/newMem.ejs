@@ -15,80 +15,87 @@
                         <div class="height0 col justifyStart alignStart">
                             <p class="size30 str500 colorPrimary">Add Resident</p>
                             <br>
-                            <div class="height0 gap10">
-                                <div class="height0 col gap5 alignStart">
-                                    <label for="">First Name</label>
-                                    <input type="text" name="firstName" required>
-                                </div>
-                                <div class="height0 col gap5 alignStart">
-                                    <label for="">Middle Name</label>
-                                    <input type="text" name="middleName">
-                                </div>
+                        <div class="height0 gap10">
+                            <div class="height0 col gap5 alignStart">
+                                <label for="">First Name</label>
+                                <input type="text" name="firstName" id="firstName" required pattern="[A-Za-z\s]+" title="Letters only">
                             </div>
-                            <br>
-                            <div class="height0 gap10">
-                                <div class="height0 col gap5 alignStart">
-                                    <label for="">Last Name</label>
-                                    <input type="text" name="lastName" required>
-                                </div>
-                                <div class="height0 col gap5 alignStart">
-                                    <label for="">Ext Name</label>
-                                    <input type="text" name="extName">
-                                </div>
+                            <div class="height0 col gap5 alignStart">
+                                <label for="">Middle Name</label>
+                                <input type="text" name="middleName" id="middleName" pattern="[A-Za-z\s]+" title="Letters only">
                             </div>
-                            <br><br>
-                            <div class="height0 gap10">
-                                <div class="height0 gap5">
-                                    <div class="height0 col alignStart">
-                                        <label for="">House Number</label>
-                                        <input name="houseNo" type="text" required>
-                                    </div>
-                                    <div class="height0 col alignStart">
-                                        <label for="">Purok</label>
-                                        <div class="selectBar widthMax100">
-                                            <select id="purok" required name="purok" placeholder="purok">
-                                                <option value="Purok 1">Purok 1</option>
-                                                <option value="Purok 2">Purok 2</option>
-                                                <option value="Purok 3">Purok 3</option>
-                                                <option value="Purok 4">Purok 4</option>
-                                                <option value="Purok 5">Purok 5</option>
-                                                <option value="Purok 6">Purok 6</option>
-                                                <option value="Purok 7">Purok 7</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
+                        </div>
+                        <br>
+                        <div class="height0 gap10">
+                            <div class="height0 col gap5 alignStart">
+                                <label for="">Last Name</label>
+                                <input type="text" name="lastName" id="lastName" required pattern="[A-Za-z\s]+" title="Letters only">
                             </div>
-                            <br>
-                            <label for="">Birthday</label>
+                            <div class="height0 col gap5 alignStart">
+                                <label for="">Ext Name</label>
+                                <input type="text" name="extName" id="extName" pattern="[A-Za-z\s]+" title="Letters only">
+                            </div>
+                        </div>
+                        <br><br>
+                        <div class="height0 gap10">
                             <div class="height0 gap5">
-                                <div class="height0 col alignStart width40">
+                                <div class="height0 col alignStart">
+                                    <label for="">House Number</label>
+                                    <input 
+                                    type="tel" 
+                                    name="houseNo" 
+                                    id="phone" 
+                                    class="phone" 
+                                    required
+                                    maxlength="11" 
+                                    pattern="[0-9]{11}" 
+                                    title="Please enter an 11-digit number only (e.g., 09123456789)">
+                                </div>
+                                <div class="height0 col alignStart">
+                                    <label for="">Purok</label>
                                     <div class="selectBar widthMax100">
-                                        <select id="bMonth" required name="bMonth" placeholder="Month">
-                                            <option value="" selected disabled>Month</option>
-                                            <option value="1">January</option>
-                                            <option value="2">February</option>
-                                            <option value="3">March</option>
-                                            <option value="4">April</option>
-                                            <option value="5">May</option>
-                                            <option value="6">June</option>
-                                            <option value="7">July</option>
-                                            <option value="8">August</option>
-                                            <option value="9">September</option>
-                                            <option value="10">October</option>
-                                            <option value="11">November</option>
-                                            <option value="12">December</option>
+                                        <select id="purok" required name="purok" placeholder="purok">
+                                            <option value="Purok 1">Purok 1</option>
+                                            <option value="Purok 2">Purok 2</option>
+                                            <option value="Purok 3">Purok 3</option>
+                                            <option value="Purok 4">Purok 4</option>
+                                            <option value="Purok 5">Purok 5</option>
+                                            <option value="Purok 6">Purok 6</option>
+                                            <option value="Purok 7">Purok 7</option>
                                         </select>
                                     </div>
                                 </div>
-                                <div class="height0 col alignStart width20">
-                                    <input name="bDay" type="number" id="bDay" min="1" max="31" placeholder="Day"
-                                        required>
-                                </div>
-                                <div class="height0 col alignStart width40">
-                                    <input name="bYear" type="number" id="bYear" min="1900" placeholder="Year" required>
+                            </div>
+                        </div>
+                        <br>
+                        <label for="">Birthday</label>
+                        <div class="height0 gap5">
+                            <div class="height0 col alignStart width40">
+                                <div class="selectBar widthMax100">
+                                    <select id="bMonth" required name="bMonth" placeholder="Month">
+                                        <option value="" selected disabled>Month</option>
+                                        <option value="1">January</option>
+                                        <option value="2">February</option>
+                                        <option value="3">March</option>
+                                        <option value="4">April</option>
+                                        <option value="5">May</option>
+                                        <option value="6">June</option>
+                                        <option value="7">July</option>
+                                        <option value="8">August</option>
+                                        <option value="9">September</option>
+                                        <option value="10">October</option>
+                                        <option value="11">November</option>
+                                        <option value="12">December</option>
+                                    </select>
                                 </div>
                             </div>
+                            <div class="height0 col alignStart width20">
+                                <input name="bDay" type="number" id="bDay" min="1" max="31" placeholder="Day" required>
+                            </div>
+                            <div class="height0 col alignStart width40">
+                                <input name="bYear" type="number" id="bYear" min="1900" placeholder="Year" required>
+                            </div>
+                        </div>
                             <label class="colorPrimary" id="ageWarning" style="display: none;"></label>
                             <br>
                             <div class="height0 col alignStart">
@@ -261,3 +268,85 @@
             });
         });
     </script>
+    <script>
+document.addEventListener("DOMContentLoaded", function () {
+  // --- AGE VALIDATION ---
+  const monthInput = document.getElementById("bMonth");
+  const dayInput = document.getElementById("bDay");
+  const yearInput = document.getElementById("bYear");
+  const ageWarning = document.getElementById("ageWarning");
+
+  function calculateAge() {
+    const month = parseInt(monthInput.value);
+    const day = parseInt(dayInput.value);
+    const year = parseInt(yearInput.value);
+
+    if (!month || !day || !year) {
+      ageWarning.style.display = "block";
+      ageWarning.style.color = "red";
+      ageWarning.textContent = "⚠️ Please complete Month, Day, and Year.";
+      return;
+    }
+
+    const today = new Date();
+    const birthDate = new Date(year, month - 1, day);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
+    ageWarning.style.display = "block";
+    if (age < 15) {
+      ageWarning.style.color = "red";
+      ageWarning.textContent = `⚠️ Age is ${age}. Must be at least 15 years old!`;
+    } else {
+      ageWarning.style.color = "green";
+      ageWarning.textContent = `✅ Age is ${age}.`;
+    }
+  }
+
+  // Recalculate age whenever any field changes
+  [monthInput, dayInput, yearInput].forEach((el) => {
+    el.addEventListener("input", calculateAge);
+    el.addEventListener("change", calculateAge);
+  });
+
+  // --- CHARACTER LIMIT FIXES ---
+  const phoneInput = document.getElementById("phone");
+  const houseNoInput = document.querySelector('input[name="houseNo"]');
+
+  function enforceLimit(input, maxLength) {
+    input.addEventListener("input", function () {
+      // Remove all non-numeric characters
+      this.value = this.value.replace(/\D/g, "");
+      // Cut off extra characters
+      if (this.value.length > maxLength) {
+        this.value = this.value.slice(0, maxLength);
+      }
+    });
+  }
+
+  // Apply enforcement
+  enforceLimit(phoneInput, 11);
+  enforceLimit(houseNoInput, 11);
+
+  // --- LETTERS-ONLY VALIDATION ---
+  const letterOnlyFields = [
+    document.querySelector('input[name="firstName"]'),
+    document.querySelector('input[name="middleName"]'),
+    document.querySelector('input[name="lastName"]'),
+    document.querySelector('input[name="extName"]'),
+    document.querySelector('input[name="nationality"]'),
+    document.querySelector('input[name="religion"]')
+  ];
+
+  letterOnlyFields.forEach((field) => {
+    if (!field) return;
+    field.addEventListener("input", function () {
+      // Allow only letters, spaces, hyphens, apostrophes
+      this.value = this.value.replace(/[^A-Za-z\s\-']/g, "");
+    });
+  });
+});
+</script>
