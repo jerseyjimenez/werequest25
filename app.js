@@ -3189,7 +3189,7 @@ app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
         // Send response immediately before sending email
         res.redirect("/reqSuccess");
         if (resident?.email) {
-            const sendSmtpEmail = {
+            const msg = {
                 sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
                 to: [{ email: resident.email }],
                 subject: "Document Request Submitted Successfully",
@@ -3202,7 +3202,7 @@ app.post("/reqDocument", isLogin, upload.array("proof[]"), async (req, res) => {
             };
 
             try {
-                await brevoClient.sendTransacEmail(sendSmtpEmail);
+                await sgMail.send(msg);
                 console.log("✅ Email sent to:", resident.email);
             } catch (emailError) {
                 console.error("❌ Error sending email via Brevo:", emailError.message);
@@ -3297,7 +3297,7 @@ app.post("/reqDocumentA", isLogin, upload.array("proof[]"), async (req, res) => 
 
         // Send email notification asynchronously after redirect
         if (resident?.email) {
-            const sendSmtpEmail = {
+            const msg = {
                 sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
                 to: [{ email: resident.email }],
                 subject: "Document Request Submitted Successfully",
@@ -3310,7 +3310,7 @@ app.post("/reqDocumentA", isLogin, upload.array("proof[]"), async (req, res) => 
             };
 
             try {
-                await brevoClient.sendTransacEmail(sendSmtpEmail);
+                await sgMail.send(msg);
                 console.log("✅ Email sent to:", resident.email);
             } catch (emailError) {
                 console.error("❌ Error sending email via Brevo:", emailError.message);
@@ -4048,16 +4048,16 @@ app.post("/verDoc/:id", async (req, res) => {
         if (!emailRecipient) return res.json({ success: true, message: "Request verified, no email sent." });
 
         let emailHTML = `
-    <p>Your request has been <strong>Verified</strong>.</p>
-    <p>Request Reference: ${request._id}</p>
-    <p>Thank you for using our system.</p>
+        <p>Your request has been <strong>Verified</strong>.</p>
+        <p>Request Reference: ${request._id}</p>
+        <p>Thank you for using our system.</p>
 `;
 
         if (resident?.email !== emailRecipient) {
             emailHTML = `<p>The request for ${resident?.firstName || "your household member"} has been verified.</p>` + emailHTML;
         }
 
-        const sendSmtpEmail = {
+        const msg = {
             sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
             to: [{ email: emailRecipient }],
             subject: "Request Status Update - Verified",
@@ -4065,7 +4065,7 @@ app.post("/verDoc/:id", async (req, res) => {
         };
 
         try {
-            await brevoClient.sendTransacEmail(sendSmtpEmail);
+            await sgMail.send(msg);
             console.log("✅ Verification email sent:", emailRecipient);
         } catch (error) {
             console.error("❌ Error sending verification email via Brevo:", error.message);
@@ -4118,7 +4118,7 @@ app.post("/noDoc/:id", async (req, res) => {
             emailHTML = `<p>The request for ${resident?.firstName || "your household member"} has been declined.</p>` + emailHTML;
         }
 
-        const sendSmtpEmail = {
+        const msg = {
             sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
             to: [{ email: emailRecipient }],
             subject: "Request Status Update - Declined",
@@ -4126,7 +4126,7 @@ app.post("/noDoc/:id", async (req, res) => {
         };
 
         try {
-            await brevoClient.sendTransacEmail(sendSmtpEmail);
+            await sgMail.send(msg);
             console.log("❌ Decline email sent:", emailRecipient);
         } catch (error) {
             console.error("Error sending decline email via Brevo:", error.message);
@@ -4177,7 +4177,7 @@ app.post("/release/:id", async (req, res) => {
         <p>Thank you.</p>
     `;
 
-            const sendSmtpEmail = {
+            const msg = {
                 sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
                 to: [{ email: resident.email }],
                 subject: "Your Document has been released",
@@ -4185,7 +4185,7 @@ app.post("/release/:id", async (req, res) => {
             };
 
             try {
-                await brevoClient.sendTransacEmail(sendSmtpEmail);
+                await sgMail.send(msg);
                 console.log(`✅ Email sent to ${resident.email}`);
                 message += " Email notification sent.";
             } catch (error) {
@@ -4238,7 +4238,7 @@ app.post("/cancel/:id", async (req, res) => {
         <p>You have successfully <strong>cancelled</strong> your request.</p>
     `;
 
-            const sendSmtpEmail = {
+            const msg = {
                 sender: { name: "Barangay San Andres", email: "wilynsasuncion@gmail.com" },
                 to: [{ email: resident.email }],
                 subject: "Request Cancelled",
@@ -4246,7 +4246,7 @@ app.post("/cancel/:id", async (req, res) => {
             };
 
             try {
-                await brevoClient.sendTransacEmail(sendSmtpEmail);
+                await sgMail.send(msg);
                 console.log(`✅ Email sent to ${resident.email}`);
                 message += " Email notification sent.";
             } catch (error) {
@@ -5621,52 +5621,41 @@ const generateRandomPassword = () => {
 app.post("/forgotX", async (req, res) => {
     try {
         const { email } = req.body;
-
-        if (!email) {
-            return res.redirect("/forgot?error=" + encodeURIComponent("Email is required"));
-        }
+        if (!email) return res.redirect("/forgot?error=" + encodeURIComponent("Email is required"));
 
         const user = await db.collection("resident").findOne({ email });
-
-        if (!user) {
-            return res.redirect("/forgot?error=" + encodeURIComponent("No account found with that email address"));
-        }
+        if (!user) return res.redirect("/forgot?error=" + encodeURIComponent("No account found with that email address"));
 
         const newPassword = generateRandomPassword();
-
         await db.collection("resident").updateOne(
             { _id: user._id },
             { $set: { password: newPassword, reset: 1 } }
         );
 
-        const emailToSend = user.email;
-
-        // Respond immediately
-        res.render("passSuccess", { email: emailToSend, error: "Password Reset Successfully!" });
-
-        // Send email asynchronously via Brevo
         const emailHTML = `
             <p>A temporary password has been generated for your account:</p>
             <p style="font-size: 18px; font-weight: bold;">🔑 ${newPassword}</p>
             <p>Please log in and change your password immediately for security reasons.</p>
         `;
 
-        const sendSmtpEmail = {
+        const msg = {
             sender: { name: "Barangay System", email: "wilynsasuncion@gmail.com" },
-            to: [{ email: emailToSend }],
+            to: [{ email }],
             subject: "Password Reset Request",
             htmlContent: emailHTML,
         };
 
-        brevoClient.sendTransacEmail(sendSmtpEmail)
-            .then(() => console.log(`✅ Password reset email sent to ${emailToSend}`))
-            .catch((error) => console.error("❌ Error sending email via Brevo:", error.message));
+        // Send email and then render success page
+        await sgMail.send(msg);
+        console.log(`✅ Password reset email sent to ${email}`);
+        res.render("passSuccess", { email, error: "Password Reset Successfully!" });
 
     } catch (error) {
-        console.error("Error resetting password:", error);
+        console.error("❌ Error resetting password:", error);
         res.redirect("/forgot?error=" + encodeURIComponent("Internal Server Error"));
     }
 });
+
 
 app.get("/rqtSuccess", isLogin, isReq, (req, res) => res.render("rqtSuccess", { layout: "design", title: "Services", activePage: "rqt" }));
 app.get('/rqtView/:id', isLogin, myRqtView);
@@ -6334,7 +6323,6 @@ app.get("/nonRes", isLogin, async (req, res) => {
 app.post("/add-member", async (req, res) => {
     try {
         const residents = db.collection("resident");
-
         const {
             firstName, middleName, lastName, extName, birthPlace,
             bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email,
@@ -6363,7 +6351,6 @@ app.post("/add-member", async (req, res) => {
 
         const income = monthlyIncome ? parseFloat(monthlyIncome) : 0;
 
-        // Insert the new resident
         const newResident = {
             firstName, middleName, lastName, extName, birthPlace,
             bMonth, bDay, bYear, gender, civilStatus, pregnant, precinct, phone, email,
@@ -6382,14 +6369,13 @@ app.post("/add-member", async (req, res) => {
 
         await residents.insertOne(newResident);
 
-        // Redirect immediately to avoid waiting for email
+        // Redirect immediately
         res.redirect("/res");
 
-        // Send email in background
+        // Send email asynchronously (doesn’t block redirect)
         (async () => {
             try {
                 let recipientEmail = email;
-
                 if (!recipientEmail && rel === "member" && headId) {
                     const headResident = await db.collection("resident").findOne({ _id: new ObjectId(headId) });
                     if (headResident && headResident.email) recipientEmail = headResident.email;
@@ -6397,36 +6383,40 @@ app.post("/add-member", async (req, res) => {
 
                 if (recipientEmail) {
                     const emailHTML = `
-                <p>Dear <strong>${firstName}</strong>,</p>
-                <p>Your resident account has been created.</p>
-                <p><strong>Username:</strong> ${username}</p>
-                <p><strong>Password:</strong> ${password}</p>
-                <p>Please keep your credentials secure.</p>
-                <p>Thank you.</p>
-            `;
+                        <p>Dear <strong>${firstName}</strong>,</p>
+                        <p>Your resident account has been created.</p>
+                        <p><strong>Username:</strong> ${username}</p>
+                        <p><strong>Password:</strong> ${password}</p>
+                        <p>Please keep your credentials secure.</p>
+                        <p>Thank you.</p>
+                    `;
 
-                    const sendSmtpEmail = {
+                    const msg = {
                         sender: { name: "Barangay System", email: "wilynsasuncion@gmail.com" },
                         to: [{ email: recipientEmail }],
                         subject: "Your Resident Account Details",
                         htmlContent: emailHTML,
                     };
 
-                    brevoClient.sendTransacEmail(sendSmtpEmail)
-                        .then(() => console.log(`✅ Resident account email sent to ${recipientEmail}`))
-                        .catch(err => console.error("❌ Error sending resident email via Brevo:", err.message));
+                    // ✅ Use try/catch (no await + .then combo)
+                    try {
+                        await sgMail.send(msg);
+                        console.log(`✅ Resident account email sent to ${recipientEmail}`);
+                    } catch (err) {
+                        console.error("❌ Error sending resident email via Brevo:", err.message);
+                    }
                 }
             } catch (err) {
                 console.error("❌ Error preparing resident email:", err);
             }
         })();
 
-
     } catch (error) {
         console.error("Error adding resident:", error);
         res.status(500).send('<script>alert("Error adding resident"); window.location="/";</script>');
     }
 });
+
 
 app.post("/add-member2", async (req, res) => {
     try {
@@ -6595,14 +6585,9 @@ app.post("/add-memberR", async (req, res) => {
           const msg = {
             to: recipientEmail,
             from: { email: "wilynsasuncion@gmail.com", name: "Barangay System" },
-            subject: "Your Resident Account Details",
+            subject: "Registration Successfully!",
             html: `
-              <p>Dear <strong>${firstName}</strong>,</p>
-              <p>Your resident account has been created successfully.</p>
-              <p><strong>Username:</strong> ${username}</p>
-              <p><strong>Password:</strong> ${password}</p>
-              <p>Please keep your credentials secure.</p>
-              <p>Thank you,<br>Barangay Valdefuente</p>
+              <p>Your registration has been submitted successfully!</p>
             `,
           };
 
